@@ -11,6 +11,17 @@ paso remoto**. Nada de lo descrito aquí se ha aplicado a ninguna base remota.
 | **Probado localmente** | `/health` responde sin credenciales; las variables vacías cuentan como no definidas; `DATABASE_URL` no aparece en `repr`. No se probó ningún SQL: no hay Docker en este equipo y el SQL aún no está en el repo. |
 | **Aplicado remotamente** | Nada. |
 
+Comprobaciones remotas de solo lectura, ejecutadas por el usuario el
+2026-10-09 (no por Claude):
+
+- `login` y `link` completados; `migration list` sin migraciones locales ni
+  remotas; `db push --dry-run` sin candidatas.
+- Consulta a `pg_tables` para `public` y `cane_private`: sin filas, es decir,
+  el esquema remoto estaba vacío en ese momento.
+
+Eso describe el estado previo a cualquier migración; no cambia el hecho de que
+nada de CANE Prep se ha aplicado todavía.
+
 La migración **no existe todavía** en `supabase/migrations/`. El archivo
 `supabase_cane.sql` no estaba disponible al preparar esta parte, así que no se
 revisó ni se copió. Hasta entonces, no hay nada que aplicar.
