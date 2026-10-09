@@ -12,7 +12,7 @@ ranking, base de datos aplicada ni despliegues.
 | --- | --- |
 | Frontend (Vite + TypeScript) | Pantalla con un botón que consulta `GET /health` |
 | Backend (FastAPI) | Solo `GET /health` → `{"ok": true}` y CORS |
-| Supabase | Solo `config.toml` de la CLI; sin migraciones |
+| Supabase | Solo `config.toml` de la CLI; sin migraciones. La guía está en [`docs/supabase.md`](docs/supabase.md); nada aplicado al remoto |
 | Netlify / Render | Sin configurar ni desplegar |
 
 ## Alcance

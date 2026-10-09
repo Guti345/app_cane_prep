@@ -47,9 +47,11 @@ npm run dev
 Abre <http://localhost:5173> y usa el botón **Consultar /health**. Sin
 backend, la página muestra un aviso y sigue funcionando.
 
-`frontend/.env` está ignorado por Git. Solo contiene `VITE_API_URL`; nunca
-pongas ahí secretos, porque todo lo que empieza con `VITE_` termina en el
-navegador.
+`frontend/.env` está ignorado por Git. Nunca pongas ahí secretos, porque todo
+lo que empieza con `VITE_` termina en el navegador. Solo `VITE_API_URL` se usa
+hoy; las variables de Supabase están reservadas (ver
+[`supabase.md`](supabase.md)). La cadena `DATABASE_URL` es privada y solo del
+backend; `/health` funciona sin ella.
 
 ## Comprobaciones
 

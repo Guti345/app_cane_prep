@@ -54,3 +54,39 @@ def test_wildcard_origin_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError):
         load_settings()
+
+
+SUPABASE_ENV_NAMES = ("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "DATABASE_URL")
+
+
+def test_health_works_without_supabase_variables(monkeypatch):
+    for name in SUPABASE_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+
+    settings = load_settings()
+    response = TestClient(create_app(settings)).get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+    assert settings.database_url is None
+
+
+def test_empty_supabase_variables_are_treated_as_unset(monkeypatch):
+    for name in SUPABASE_ENV_NAMES:
+        monkeypatch.setenv(name, "  ")
+
+    settings = load_settings()
+
+    assert settings.supabase_url is None
+    assert settings.supabase_publishable_key is None
+    assert settings.database_url is None
+
+
+def test_database_url_is_not_exposed_in_repr(monkeypatch):
+    marker = "marcador-no-secreto-para-prueba"
+    monkeypatch.setenv("DATABASE_URL", f"postgresql://usuario:{marker}@host/db")
+
+    settings = load_settings()
+
+    assert settings.database_url is not None
+    assert marker not in repr(settings)

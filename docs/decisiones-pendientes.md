@@ -42,6 +42,19 @@ Nada de esto está terminado:
 - Endpoints de juego.
 - Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API.
 
+## Migración inicial
+
+- **SQL sin revisar**: `supabase_cane.sql` no estaba en el repo ni en el equipo
+  al preparar la parte 2. Falta su ruta; no se reconstruyó.
+- **Nombre del archivo**: ¿`20261009_supabase_cane.sql` (acordado) o el
+  generado por `npx supabase migration new supabase_cane`, con 14 dígitos?
+  Detalle en [`supabase.md`](supabase.md).
+- **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
+  (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
+  `config push` o de usar la pila local.
+- **Autorización del API**: mecanismo de validación del token de Supabase en
+  el backend (parte 3).
+
 ## Otros
 
 - **Versión de Python en Render**: el backend se probó localmente con 3.14.5.

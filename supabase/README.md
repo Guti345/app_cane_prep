@@ -16,8 +16,9 @@ carpeta.
 
 ## Qué falta
 
-- Escribir y revisar la migración real (tablas, permisos, RLS). El SQL
-  recibido todavía tiene decisiones abiertas; ver
+- Revisar el SQL recibido (`supabase_cane.sql`, aún no incluido en el repo) y
+  convertirlo en la migración. Tiene decisiones abiertas; ver
+  [`docs/supabase.md`](../docs/supabase.md) y
   [`docs/decisiones-pendientes.md`](../docs/decisiones-pendientes.md).
 - Aplicarla una sola vez en el proyecto correcto y verificar tablas, permisos
   e historial. Recomendación del plan: usar la CLI (`db push`) y no pegar
