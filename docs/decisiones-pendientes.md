@@ -1,61 +1,56 @@
-# Decisiones pendientes
+# Decisiones
 
-Lista de lo que **no** está cerrado. No se debe implementar nada de aquí como
-si fuera definitivo.
+Lo cerrado y lo que sigue abierto. Una decisión "cerrada" está reflejada en la
+migración, que aun así **no se ha aplicado ni ejecutado**.
 
-## Ranking
+## Cerradas (2026-10-09)
 
-Confirmado:
+| Tema | Decisión |
+| --- | --- |
+| Cronómetro | 90 s fijo, documentado. `time_limit_seconds` solo admite 90. No es configurable en el MVP. |
+| Ranking | Mínimo 20 preguntas distintas; orden por precisión (% de aciertos) y desempate por **tiempo total**. |
+| Intentos que cuentan | Solo el primer intento por pregunta y persona, en sesiones completadas. Un timeout cuenta como fallo. |
+| Borrado de usuarios | En cascada (se pierde su historial). |
+| Activar preguntas | Solo con `verified_at` en su clave. |
+| Equipo | Cinco miembros como máximo. |
+| Rol del backend | `postgres` en el MVP; `DATABASE_URL` solo en Render. |
+| Nombre de la migración | `npx supabase migration new supabase_cane` → `20261009212148_supabase_cane.sql`. |
+| Pruebas | Proyecto Supabase nuevo y vacío, solo para pruebas. |
 
-- Mínimo de 20 preguntas para aparecer.
-- Se ordena por precisión (propuesta: porcentaje de respuestas correctas, no
-  solo cantidad de aciertos).
-- El tiempo desempata.
+Detalle y trazabilidad en [`supabase.md`](supabase.md) y
+[`revision-sql-supabase.md`](revision-sql-supabase.md).
 
-Pendiente de confirmar:
+## Abiertas
 
-- ¿Desempate por **tiempo total** o por **tiempo medio**? En la conversación se
-  habló de menor tiempo total, pero no hubo confirmación expresa.
-- Qué intentos cuentan.
+### Migración y base de datos
 
-El SQL recibido propone precisión, luego aciertos y luego tiempo medio, usando
-las primeras respuestas por pregunta fuente en sesiones completadas. **No es la
-fórmula final aprobada**: antes de implementarla hay que revisar la vista
-`practice_ranking` para que no agregue desempates no acordados (p. ej. aciertos).
+- **Probar la migración**: sin ejecutar en ninguna base. Pendiente crear el
+  proyecto de pruebas y correr [`prueba-migracion.sql`](prueba-migracion.sql)
+  (sin Docker en este equipo).
+- **Puntos técnicos T2-T6** de la revisión, sin aplicar: `pgcrypto`, permisos
+  por defecto y Data API, `BEGIN`/`COMMIT` internos, `repeated_from` frente a
+  sesiones cerradas, índices. Se decidirán con el resultado de la prueba.
+- **Aplicar al proyecto real**: requiere autorización explícita tras una
+  prueba aprobada.
+- **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
+  (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
+  `config push` o de usar la pila local. Verificar también el panel.
+- **Regla del timeout**: queda como fallo con `90000` ms; falta documentarla
+  de cara al usuario.
 
-## Cronómetro configurable
-
-El plazo elegido es de 90 segundos, pero el SQL lo usa fijo en varios lugares
-(entre ellos el cálculo del `deadline` y un trigger). Cambiar solo
-`time_limit_seconds` **no basta**. Hay que adaptar esos cálculos antes de
-presentar el plazo como configurable de punta a punta. También falta
-documentar la regla exacta al vencer el plazo.
-
-## Supabase, Auth, datos y despliegues
+### Auth, datos y despliegues
 
 Nada de esto está terminado:
 
-- Migración real sin escribir/aplicar; sin historial verificado.
 - Auth, las cinco identidades del equipo y sus perfiles.
+- Autorización del API: mecanismo de validación del token de Supabase en el
+  backend (parte 3).
 - Importación privada del banco de preguntas (483 esperadas, no garantizadas
   como habilitadas el primer día).
 - Endpoints de juego.
 - Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API.
 
-## Migración inicial
-
-- **SQL sin revisar**: `supabase_cane.sql` no estaba en el repo ni en el equipo
-  al preparar la parte 2. Falta su ruta; no se reconstruyó.
-- **Nombre del archivo**: ¿`20261009_supabase_cane.sql` (acordado) o el
-  generado por `npx supabase migration new supabase_cane`, con 14 dígitos?
-  Detalle en [`supabase.md`](supabase.md).
-- **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
-  (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
-  `config push` o de usar la pila local.
-- **Autorización del API**: mecanismo de validación del token de Supabase en
-  el backend (parte 3).
-
-## Otros
+### Otros
 
 - **Versión de Python en Render**: el backend se probó localmente con 3.14.5.
   Al desplegar hay que fijar la versión (p. ej. con `PYTHON_VERSION`) y

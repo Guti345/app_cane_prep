@@ -7,9 +7,9 @@ paso remoto**. Nada de lo descrito aquí se ha aplicado a ninguna base remota.
 
 | Etapa | Estado |
 | --- | --- |
-| **Preparado localmente** | Contrato de variables de entorno (`.env.example` de frontend y backend), lectura opcional de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `DATABASE_URL` en `backend/app/config.py`, esta guía. |
-| **Probado localmente** | `/health` responde sin credenciales; las variables vacías cuentan como no definidas; `DATABASE_URL` no aparece en `repr`. No se probó ningún SQL: no hay Docker en este equipo y el SQL aún no está en el repo. |
-| **Aplicado remotamente** | Nada. |
+| **Preparado localmente** | Contrato de variables de entorno (`.env.example` de frontend y backend), lectura opcional de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `DATABASE_URL` en `backend/app/config.py`, esta guía. La migración `supabase/migrations/20261009212148_supabase_cane.sql` con las decisiones D1, D2, D5 y T1, y el script de prueba [`prueba-migracion.sql`](prueba-migracion.sql). |
+| **Probado localmente** | `/health` responde sin credenciales; las variables vacías cuentan como no definidas; `DATABASE_URL` no aparece en `repr`. La migración y el script de prueba pasaron un análisis de sintaxis (pglast), pero **nunca se ejecutaron**: no hay Docker en este equipo. |
+| **Aplicado remotamente** | Nada: ni en el proyecto real ni en uno de pruebas. |
 
 Comprobaciones remotas de solo lectura, ejecutadas por el usuario el
 2026-10-09 (no por Claude):
@@ -22,9 +22,13 @@ Comprobaciones remotas de solo lectura, ejecutadas por el usuario el
 Eso describe el estado previo a cualquier migración; no cambia el hecho de que
 nada de CANE Prep se ha aplicado todavía.
 
-La migración **no existe todavía** en `supabase/migrations/`. El archivo
-`supabase_cane.sql` no estaba disponible al preparar esta parte, así que no se
-revisó ni se copió. Hasta entonces, no hay nada que aplicar.
+La migración existe en `supabase/migrations/20261009212148_supabase_cane.sql`
+y está **pendiente de revisión y aplicación**: tiene sintaxis válida, pero no
+se ha ejecutado en ninguna base. Aparecerá como candidata en `db push` contra
+el proyecto vinculado (el real): **no ejecutes `db push` ahí** hasta pasar la
+prueba y autorizarlo. El SQL original queda intacto como referencia en
+`private-data/supabase_cane.sql` (local, ignorado). Revisión y decisiones:
+[`revision-sql-supabase.md`](revision-sql-supabase.md).
 
 ## Variables de entorno
 
@@ -46,29 +50,22 @@ revisó ni se copió. Hasta entonces, no hay nada que aplicar.
   el backend valida el token y el perfil/equipo en cada petición. Un `user_id`
   recibido del navegador no prueba identidad, y CORS tampoco.
 
-## Nombre de la migración (decisión pendiente)
+## Nombre de la migración
 
-El nombre acordado fue `supabase/migrations/20261009_supabase_cane.sql`.
+Decidido: generarlo con `npx supabase migration new supabase_cane`. El archivo
+resultante es `supabase/migrations/20261009212148_supabase_cane.sql`: la versión
+`20261009212148` es la fecha y hora UTC de creación (AAAAMMDDHHMMSS) y es la
+clave que la CLI registra en el historial remoto. No se renombra tras
+aplicarla.
 
-La CLI instalada (2.120.0) genera nombres con 14 dígitos
-(`AAAAMMDDHHMMSS_nombre.sql`). Lo comprobé ejecutando
-`npx supabase migration new supabase_cane` en un directorio aislado y temporal:
-produjo `20261009204713_supabase_cane.sql`. No lo hice dentro de este repo.
+Reglas: una sola migración con este SQL; el original se conserva fuera de
+`migrations/` como referencia local, no como copia ejecutable.
 
-Con 8 dígitos (`20261009`) no pude comprobar cómo lo registra la CLI, porque
-hacerlo requiere una base (local con Docker o remota). Por eso **propongo**
-generar el archivo con `npx supabase migration new supabase_cane` y pegar el
-SQL revisado dentro. Es tu decisión: no se renombra ni se crea nada hasta que
-confirmes. El nombre definitivo se genera en ese momento; el de arriba es solo
-el resultado de la prueba.
+## Revisión del SQL
 
-Reglas: una sola migración con ese SQL; el SQL original se conserva fuera de
-`migrations/` como referencia local (no como copia ejecutable).
-
-## Revisión del SQL (pendiente)
-
-Cuando esté disponible el archivo, se revisa **el archivo real**, sin
-reconstruirlo. Lista de verificación:
+Hecha sobre el archivo real; resultados y puntos a decidir en
+[`revision-sql-supabase.md`](revision-sql-supabase.md). Lista de verificación
+usada:
 
 1. **Contenido**: sin filas del banco, sin `correct_option` concretos, sin
    credenciales ni cuentas reales. Definir `question_keys`/`correct_option`
@@ -88,21 +85,63 @@ reconstruirlo. Lista de verificación:
    `timeout`, límites en milisegundos, trigger).
 6. **Ranking**: mínimo de 20 preguntas, desempates y conjunto de intentos.
 
-### Puntos a resolver antes de aplicar
+### Decisiones adoptadas (2026-10-09)
 
-Vienen del resumen del proyecto y **no están verificados contra el archivo**.
-No se han cambiado ni convertido en regla definitiva:
+| Código | Decisión | En la migración |
+| --- | --- | --- |
+| D1 | Plazo fijo de 90 s, documentado | `time_limit_seconds` solo admite 90 (`CHECK`); no es configurable en el MVP |
+| D2 | Precisión (% de aciertos) y desempate por tiempo total | `ORDER BY accuracy_ratio DESC, total_time_ms ASC`; la columna `total_time_seconds` es nueva |
+| D3 | Solo el primer intento; un timeout cuenta como fallo | Sin cambio (ya era así) |
+| D4 | Borrado en cascada | Sin cambio |
+| D5 | Activar solo con `verified_at` | `check_question_key` rechaza una pregunta activa sin `verified_at` en su clave |
+| D6 | Cinco miembros por equipo | Sin cambio |
+| T1 | Rol `postgres` en el MVP, `DATABASE_URL` solo en Render | Se quitaron los 4 `GRANT` a `service_role` |
 
-- **Cronómetro configurable**: según el resumen, `deadline` y el trigger
-  siguen fijos en 90 s; cambiar solo `time_limit_seconds` no basta. Decidir si
-  el MVP queda con 90 s fijos documentados o si se adapta el SQL.
-- **Regla al vencer el plazo**: qué se registra y cómo cuenta en el ranking.
-- **Desempate**: tiempo total o tiempo medio (confirmado solo "tiempo"). El SQL
-  propone precisión, aciertos y tiempo medio; "aciertos" no está acordado.
-- **Intentos que cuentan**: el SQL propone la primera respuesta por pregunta y
-  persona en sesiones completadas, con 20 preguntas distintas.
-- **Simulacro**: fases de 16/12/8/4 basadas en el reglamento de 2025; faltan
-  las reglas de 2026.
+Sigue sin confirmar (no cambia el SQL): las reglas de simulacro de 2026 (fases
+de 16/12/8/4 basadas en el reglamento de 2025). Los puntos técnicos T2-T6 de
+[`revision-sql-supabase.md`](revision-sql-supabase.md) **no se aplicaron**; se
+decidirán con el resultado de la prueba.
+
+## Probar en un proyecto desechable
+
+Antes de tocar el proyecto real, la migración se prueba en un proyecto
+Supabase **nuevo y vacío, creado solo para pruebas**. Nada de esto está hecho.
+
+**Cuidado con el vínculo.** `supabase link` cambia el proyecto asociado a la
+carpeta. Si lo ejecutas dentro del repo con el ref de pruebas, un `db push`
+posterior apuntaría al proyecto equivocado. Por eso hay dos caminos que no lo
+tocan.
+
+**Opción A (recomendada, la más simple): SQL Editor del proyecto de pruebas.**
+
+1. Abre el SQL Editor del proyecto **de pruebas** y pega el contenido de
+   `supabase/migrations/20261009212148_supabase_cane.sql`. Ejecútalo una vez.
+2. En otra pestaña, pega [`prueba-migracion.sql`](prueba-migracion.sql) y
+   ejecútalo. Termina con un error deliberado `INFORME DE PRUEBA` que revierte
+   todo y lista cada comprobación como `OK` o `FALLA`.
+
+Esta opción prueba el SQL y la lógica; no prueba cómo lo trata la CLI (por
+ejemplo, el `BEGIN`/`COMMIT` interno, punto T4).
+
+**Opción B: la CLI desde una carpeta temporal.**
+
+```powershell
+New-Item -ItemType Directory -Force C:\temp\cane-prueba\supabase\migrations
+Copy-Item supabase\config.toml C:\temp\cane-prueba\supabase\
+Copy-Item supabase\migrations\20261009212148_supabase_cane.sql C:\temp\cane-prueba\supabase\migrations\
+cd C:\temp\cane-prueba
+npx supabase link --project-ref REF_DEL_PROYECTO_DE_PRUEBAS
+Get-Content supabase\.temp\project-ref      # confirma que es el ref de PRUEBAS
+npx supabase db push --dry-run
+npx supabase db push                        # solo aquí, en el proyecto de pruebas
+npx supabase migration list
+```
+
+Luego ejecuta `prueba-migracion.sql` en el SQL Editor de ese proyecto.
+
+Al terminar, comparte solo el texto del informe. Una prueba aprobada permite
+**proponer** el `db push` al proyecto real; no lo autoriza. Esa autorización
+sigue siendo explícita y se da sobre el proyecto y los cambios revisados.
 
 ## Pasos remotos (guiados; los ejecutas tú)
 

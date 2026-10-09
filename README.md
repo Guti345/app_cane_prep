@@ -12,7 +12,7 @@ ranking, base de datos aplicada ni despliegues.
 | --- | --- |
 | Frontend (Vite + TypeScript) | Pantalla con un botón que consulta `GET /health` |
 | Backend (FastAPI) | Solo `GET /health` → `{"ok": true}` y CORS |
-| Supabase | Solo `config.toml` de la CLI; sin migraciones. La guía está en [`docs/supabase.md`](docs/supabase.md); nada aplicado al remoto |
+| Supabase | `config.toml` y una migración **pendiente de revisión y aplicación**, sin ejecutar en ninguna base. Guía en [`docs/supabase.md`](docs/supabase.md); nada aplicado al remoto |
 | Netlify / Render | Sin configurar ni desplegar |
 
 ## Alcance
@@ -46,7 +46,7 @@ app_cane_prep/
     requirements.txt, requirements-dev.txt, .env.example
   supabase/
     config.toml        Configuración de la CLI (preexistente)
-    migrations/        Vacía; aún sin migraciones
+    migrations/        Una migración, pendiente de revisión y aplicación
   docs/                arquitectura, desarrollo local, decisiones pendientes
   private-data/        SOLO LOCAL e ignorada por Git (no existe al clonar)
 ```
