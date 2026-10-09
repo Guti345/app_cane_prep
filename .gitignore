@@ -16,3 +16,42 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+# --- CANE Prep ---
+
+# Datos privados: solo locales. Git no los conserva; cada integrante los crea.
+private-data/
+
+# Variables de entorno y secretos (en cualquier carpeta).
+# Solo se versionan las plantillas .env.example.
+.env
+.env.*
+!.env.example
+
+# Dependencias y builds
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+.netlify/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Supabase CLI (estado local y ramas)
+supabase/.temp/
+supabase/.branches/
+
+# Logs y archivos del sistema
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
