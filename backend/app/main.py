@@ -10,7 +10,7 @@ from psycopg_pool import PoolTimeout
 from app.config import Settings, load_settings
 from app.domain import GameRepository, SessionNotFound
 from app.postgres import PostgresGameRepository, make_pool
-from app.routes_game import router as game_router
+from app.routes_game import ranking_router, router as game_router
 from app.supabase_auth import AuthService, SupabaseTokenVerifier
 
 
@@ -76,6 +76,7 @@ def create_app(
         return {"ok": True}
 
     app.include_router(game_router)
+    app.include_router(ranking_router)
 
     return app
 

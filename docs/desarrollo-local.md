@@ -44,14 +44,22 @@ npm install
 npm run dev
 ```
 
-Abre <http://localhost:5173> y usa el botón **Consultar /health**. Sin
-backend, la página muestra un aviso y sigue funcionando.
+Abre <http://localhost:5173>. La aplicación necesita las **tres** variables
+públicas de `frontend/.env`; si falta alguna, muestra un aviso con sus
+nombres en lugar de una pantalla en blanco:
+
+| Variable | Valor |
+| --- | --- |
+| `VITE_API_URL` | URL del backend, p. ej. `http://localhost:8000` |
+| `VITE_SUPABASE_URL` | URL del proyecto de **pruebas** (Project Settings > API) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Clave *publishable* del proyecto de pruebas |
 
 `frontend/.env` está ignorado por Git. Nunca pongas ahí secretos, porque todo
-lo que empieza con `VITE_` termina en el navegador. Solo `VITE_API_URL` se usa
-hoy; las variables de Supabase están reservadas (ver
-[`supabase.md`](supabase.md)). La cadena `DATABASE_URL` es privada y solo del
-backend; `/health` funciona sin ella.
+lo que empieza con `VITE_` termina en el navegador (la clave publicable es
+pública por diseño; una `secret`/`service_role` jamás va aquí). Para jugar
+hacen falta el backend configurado y un usuario con perfil: ver
+[`prueba-backend-pruebas.md`](prueba-backend-pruebas.md). La pantalla de login
+incluye un botón para comprobar la conexión con el backend.
 
 ## Comprobaciones
 
@@ -59,6 +67,7 @@ backend; `/health` funciona sin ella.
 # Frontend
 cd frontend
 npm run typecheck
+npm test
 npm run build
 
 # Backend (con el entorno virtual activado)
@@ -80,6 +89,20 @@ npm install
 Si no está instalado, esas pruebas se **omiten** (no fallan). PGlite es
 PostgreSQL real pero no es Supabase; ver los límites en
 [`arquitectura.md`](arquitectura.md).
+
+### Recorrido del frontend contra un backend real
+
+`frontend/src/e2e.test.ts` recorre una sesión completa con la lógica del
+cliente. Se omite si no hay variables. Para correrlo contra el backend de la
+guía [`prueba-backend-pruebas.md`](prueba-backend-pruebas.md) (proyecto de
+**pruebas**), con el token ya obtenido en esa terminal:
+
+```powershell
+cd frontend
+$env:CANE_E2E_API_URL = "http://localhost:8000"
+$env:CANE_E2E_TOKEN = $global:token      # no lo escribas en archivos
+npm test -- src/e2e.test.ts
+```
 
 Compilar el frontend no demuestra que CORS ni el despliegue funcionen; eso se
 comprueba con ambos servicios en marcha y, más adelante, con las URL reales.

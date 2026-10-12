@@ -4,16 +4,22 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3"
+  },
   "devDependencies": {
+    "happy-dom": "^21.0.1",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
   }
 }

@@ -61,6 +61,7 @@ class SessionOut(BaseModel):
     answered_count: int
     current_position: int | None
     current_deadline_at: datetime | None
+    server_now: datetime  # hora del servidor, para corregir el reloj del cliente
 
 
 class OptionOut(BaseModel):
@@ -77,6 +78,7 @@ class QuestionOut(BaseModel):
     options: list[OptionOut]
     assets: list[dict[str, Any]]
     deadline_at: datetime
+    server_now: datetime  # hora del servidor, para corregir el reloj del cliente
 
 
 class AnswerIn(BaseModel):
@@ -94,3 +96,16 @@ class AttemptOut(BaseModel):
     timed_out: bool
     time_used_ms: int
     correct_option: OptionLabel
+
+
+class RankingRowOut(BaseModel):
+    """Fila del ranking del equipo. No lleva identificadores de usuario."""
+
+    display_name: str
+    rank_position: int | None  # None: aún no llega a 20 preguntas
+    questions_seen: int
+    correct_count: int
+    accuracy_pct: float | None
+    avg_time_seconds: float | None
+    sessions_completed: int
+    is_me: bool

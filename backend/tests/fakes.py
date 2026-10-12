@@ -20,6 +20,7 @@ from app.domain import (
     Option,
     OptionLabel,
     QuestionNotIssued,
+    RankingRow,
     SessionClosed,
     SessionNotFound,
     SessionState,
@@ -94,6 +95,7 @@ class InMemoryGameRepository:
         self._clock = clock
         self._pool = pool
         self._sessions: dict[UUID, _Session] = {}
+        self.ranking_by_team: dict[UUID, list[RankingRow]] = {}
 
     # --- helpers ---------------------------------------------------------
     def _get(self, session_id: UUID) -> _Session:
@@ -118,6 +120,7 @@ class InMemoryGameRepository:
             answered_count=len(s.attempts),
             current_position=current,
             current_deadline_at=s.issued[current][1] if current else None,
+            server_now=self._clock.now,
         )
 
     # --- GameRepository --------------------------------------------------
@@ -184,6 +187,7 @@ class InMemoryGameRepository:
             statement_md=q.statement_md,
             options=q.options,
             deadline_at=s.issued[pending][1],
+            server_now=self._clock.now,
             assets=q.assets,
         )
 
@@ -225,3 +229,12 @@ class InMemoryGameRepository:
             raise SessionClosed()
         s.status = "abandoned"
         return self._state(s)
+
+    def list_attempts(self, session_id: UUID) -> list[Attempt]:
+        s = self._get(session_id)
+        return [s.attempts[p] for p in sorted(s.attempts)]
+
+    def ranking(self, team_id: UUID) -> list[RankingRow]:
+        # El ranking real sale de la vista de PostgreSQL (prueba de integración);
+        # aquí se inyecta para probar el contrato de la ruta.
+        return list(self.ranking_by_team.get(team_id, []))

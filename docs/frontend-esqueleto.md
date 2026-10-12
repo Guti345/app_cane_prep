@@ -1,7 +1,13 @@
-# Propuesta: esqueleto del frontend
+# Frontend: diseño e implementación
 
-**Estado: propuesta, sin implementar.** Describe qué construir, en qué orden y
-qué cambios pide al backend. Nada de esto existe aún en `frontend/`.
+**Estado: implementado y probado en local** (2026-10-11). Cubre las fases 1 a 3
+con texto plano en los enunciados; las decisiones tomadas están al final. Lo
+que no está hecho: Markdown/LaTeX, recursos (imágenes), pruebas en un
+navegador real y despliegue en Netlify. Probado contra el backend con
+PostgreSQL local y un Auth falso; **no** contra `pruebas_cane`.
+
+Los cambios al backend B1, B2 y B3 se implementaron (ver
+[`arquitectura.md`](arquitectura.md)).
 
 ## Restricciones
 
@@ -185,15 +191,40 @@ Manejo de errores del cliente de API:
 | 3 | Resumen y ranking; Markdown/LaTeX; recursos (imágenes) | B2, B3, decisión de formato de `assets` |
 | 4 | Pulido móvil, estados de carga y errores, pruebas de accesibilidad | — |
 
-## Decisiones abiertas
+## Decisiones
 
-1. ¿Se aprueban B1, B2 y B3 en el backend?
-2. ¿Markdown y LaTeX desde el principio, o texto plano en la fase 2?
-3. **Formato de `assets`**: la migración solo exige `status = 'available'`; no
+Tomadas:
+
+1. **B1, B2 y B3**: aprobadas e implementadas.
+2. **Texto plano** en los enunciados y opciones (fase 2). Markdown/LaTeX queda
+   para después, con HTML desactivado y sanitizado.
+3. **"Continuar sesión"** con el id guardado en el navegador (por dispositivo).
+4. **Sin recuperación de contraseña**: la cambia el administrador desde el
+   panel. La pantalla de login lo indica.
+
+Abiertas:
+
+1. **Formato de `assets`**: la migración solo exige `status = 'available'`; no
    define cómo se sirven las imágenes (URL, almacenamiento privado, firmadas).
-   Hay que cerrarlo con el importador, y sin revelar la clave resaltada.
-4. ¿"Continuar" depende de un id guardado en el navegador, o se añade
-   `GET /sessions?status=active`? (Hoy, lo primero: por dispositivo.)
-5. Idioma y textos finales de la interfaz.
-6. Sin recuperación de contraseña en el MVP: ¿lo gestiona un administrador
-   desde el panel?
+   Se cierra con el importador, sin revelar la clave resaltada. Hoy el cliente
+   recibe `assets` pero no los dibuja.
+2. Textos finales de la interfaz y pulido móvil (fase 4).
+3. **Pruebas en un navegador real**: las de pantalla usan happy-dom; falta
+   probar con un navegador y con lector de pantalla.
+4. Si "Continuar" debe funcionar entre dispositivos, habría que añadir
+   `GET /sessions?status=active`.
+
+## Notas de implementación
+
+- El cronómetro calcula siempre `deadline_at − (ahora + desfase)`, con el
+  desfase `server_now − Date.now()` medido al recibir cada pregunta. No
+  descuenta la latencia de la red (puede mostrar menos de un segundo de más); el
+  servidor es quien decide.
+- Un vencimiento sin respuesta lo registra el servidor: el cliente envía
+  `selected_option: null` al llegar a cero, y `next` también registra
+  los timeouts de preguntas vencidas.
+- Estructura real: `src/config.ts`, `supabase.ts`, `api.ts`, `play.ts`
+  (máquina de estados sin DOM), `timer.ts`, `router.ts`, `store.ts`, `dom.ts`
+  (construcción de nodos sin `innerHTML`) y `src/screens/`.
+- El cliente valida la forma de cada respuesta; si el backend cambia, falla con
+  un error claro en lugar de pintar datos a medias.

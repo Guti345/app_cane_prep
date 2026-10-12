@@ -19,6 +19,11 @@ el proyecto real.
 | Pruebas | Proyecto Supabase nuevo y vacío, solo para pruebas. |
 | Vencimiento sin respuesta | `next` registra el timeout de la pregunta vencida y emite la siguiente; si era la última, cierra la sesión (409). |
 | Validación del token | Con Supabase Auth (`GET /auth/v1/user`, equivalente a `get_user`), más perfil de equipo en la base. |
+| Cambios de API para el front | B1 `server_now`, B2 `GET /ranking` y B3 `GET /sessions/{id}/attempts`: implementados. |
+| Enunciados | Texto plano en la fase 2; Markdown/LaTeX después. |
+| Continuar sesión | Con el id guardado en el navegador (por dispositivo). |
+| Contraseñas | Sin recuperación en el MVP: la cambia el administrador desde el panel. |
+| `assets` (imágenes) | Pendiente hasta el importador; el cliente no los dibuja todavía. |
 
 Detalle y trazabilidad en [`supabase.md`](supabase.md),
 [`revision-sql-supabase.md`](revision-sql-supabase.md) y
@@ -55,10 +60,7 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
   una regla acordada.
 - **Selección de preguntas**: hoy al azar entre las últimas revisiones activas;
   no evita repetir preguntas ya vistas entre sesiones.
-- **Resultado del timeout automático**: si `next` cierra la sesión tras un
-  timeout, el cliente solo ve el 409 y el estado `completed`; no hay endpoint
-  para consultar los intentos de una sesión.
-- **Rutas pendientes**: repetir sesión (`repeated_from`) y `GET /ranking`.
+- **Rutas pendientes**: repetir sesión (`repeated_from`).
 - **Documentación de la API**: `/docs` y `/openapi.json` están públicos;
   decidir si se desactivan en producción.
 
@@ -69,8 +71,11 @@ Nada de esto está terminado:
 - Auth, las cinco identidades del equipo y sus perfiles.
 - Importación privada del banco de preguntas (483 esperadas, no garantizadas
   como habilitadas el primer día).
-- Login en el frontend y pantallas de juego.
-- Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API.
+- Frontend: Markdown/LaTeX, recursos (imágenes), prueba en un navegador real
+  y con lector de pantalla, y pulido móvil. Las pantallas existen y están
+  probadas en local, no contra `pruebas_cane`.
+- Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API
+  (CORS incluido: solo se probó el encabezado en el backend, no un navegador).
 
 ### Otros
 

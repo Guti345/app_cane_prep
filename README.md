@@ -10,8 +10,8 @@ ranking, base de datos aplicada ni despliegues.
 
 | Pieza | Estado |
 | --- | --- |
-| Frontend (Vite + TypeScript) | Pantalla con un botón que consulta `GET /health` |
-| Backend (FastAPI) | `GET /health`, CORS y la API de juego (sesiones, preguntas, respuestas) con autenticación por Supabase Auth y repositorio PostgreSQL. **Probada en local** con PostgreSQL local y un Auth falso; sin probar contra Supabase real ni desplegada. Sin configuración, las rutas de juego responden 503 |
+| Frontend (Vite + TypeScript) | Login, inicio, pregunta con cronómetro de 90 s, resultado, resumen y ranking, en texto plano. **Probado en local** (pruebas unitarias y un recorrido contra el backend local); sin probar en un navegador real, contra `pruebas_cane` ni desplegado |
+| Backend (FastAPI) | `GET /health`, CORS y la API de juego (sesiones, preguntas, respuestas, intentos y ranking) con autenticación por Supabase Auth y repositorio PostgreSQL. **Probada en local** con PostgreSQL local y un Auth falso; sin probar contra Supabase real ni desplegada. Sin configuración, las rutas de juego responden 503 |
 | Supabase | `config.toml` y una migración **probada en un proyecto de pruebas (14/14) y no aplicada al proyecto real**. Guía en [`docs/supabase.md`](docs/supabase.md) |
 | Netlify / Render | Sin configurar ni desplegar |
 
@@ -37,9 +37,10 @@ app_cane_prep/
   README.md
   .gitignore
   frontend/            Vite + TypeScript sin framework
-    src/               main.ts, api.ts, styles.css
+    src/               main.ts, app.ts, api.ts, play.ts, timer.ts,
+                       supabase.ts, router.ts, screens/, *.test.ts
     netlify.toml       build y publicación (base del sitio: frontend)
-    .env.example       VITE_API_URL
+    .env.example       VITE_API_URL, VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
   backend/             FastAPI
     app/               main.py, config.py, domain.py, schemas.py,
                        routes_game.py, dependencies.py,

@@ -48,6 +48,9 @@ class IssuedQuestion:
     statement_md: str
     options: tuple[Option, ...]
     deadline_at: datetime
+    # Hora del servidor (la de la base) al responder: permite al cliente
+    # corregir el desfase de su reloj al mostrar la cuenta atrás.
+    server_now: datetime
     assets: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
 
@@ -76,6 +79,21 @@ class SessionState:
     answered_count: int
     current_position: int | None
     current_deadline_at: datetime | None
+    server_now: datetime
+
+
+@dataclass(frozen=True)
+class RankingRow:
+    """Fila de `practice_ranking`. `user_id` es interno: no se serializa."""
+
+    user_id: UUID
+    display_name: str
+    rank_position: int | None  # None si tiene menos de 20 preguntas
+    questions_seen: int
+    correct_count: int
+    accuracy_pct: float | None
+    avg_time_seconds: float | None
+    sessions_completed: int
 
 
 @dataclass(frozen=True)
@@ -147,3 +165,10 @@ class GameRepository(Protocol):
         """
 
     def abandon_session(self, session_id: UUID) -> SessionState: ...
+
+    def list_attempts(self, session_id: UUID) -> list[Attempt]:
+        """Intentos ya cerrados de la sesión, por posición. Solo posiciones
+        respondidas: la clave de una pregunta abierta nunca sale por aquí."""
+
+    def ranking(self, team_id: UUID) -> list[RankingRow]:
+        """Filas del ranking del equipo, por puesto (sin puesto al final)."""

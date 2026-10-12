@@ -313,6 +313,71 @@ def test_a_completed_session_cannot_be_abandoned(repo, seed, world):
         repo.abandon_session(session.id)
 
 
+# --- B1: hora del servidor --------------------------------------------------------------------
+
+
+def test_server_now_comes_from_the_database_clock(repo, started, db):
+    question = repo.issue_next_question(started.id)
+
+    # server_now sale de la base, justo después de emitir: queda ~90 s de plazo.
+    remaining = (question.deadline_at - question.server_now).total_seconds()
+    assert 85 < remaining <= 90
+
+    state = repo.get_session(started.id)
+    assert state.server_now >= question.server_now
+
+
+# --- B3: intentos de la sesión --------------------------------------------------------------------
+
+
+def test_list_attempts_returns_only_closed_positions_with_their_key(repo, started):
+    repo.issue_next_question(started.id)
+    assert repo.list_attempts(started.id) == []  # la pendiente no aparece
+
+    repo.record_answer(started.id, 1, "C")
+    repo.issue_next_question(started.id)  # pregunta 2 abierta
+
+    attempts = repo.list_attempts(started.id)
+
+    assert [a.position for a in attempts] == [1]
+    assert (attempts[0].is_correct, attempts[0].correct_option) == (False, "A")
+
+
+def test_list_attempts_includes_timeouts_registered_by_next(repo, started, seed):
+    repo.issue_next_question(started.id)
+    seed.age_question(started.id, 1, 100)
+    repo.issue_next_question(started.id)
+
+    attempts = repo.list_attempts(started.id)
+
+    assert (attempts[0].timed_out, attempts[0].selected_option) == (True, None)
+
+
+# --- B2: ranking del equipo -----------------------------------------------------------------------
+
+
+def test_ranking_lists_only_the_team_ordered_with_unranked_last(repo, seed, world):
+    seed.bank(per_area=5)
+    teammate = seed.user(world["team"])
+    other_team = seed.team()
+    seed.user(other_team)  # alguien de otro equipo: no debe aparecer
+
+    # world["user"] completa 20 preguntas; el compañero no responde nada.
+    session = make_session(repo, world, mode="random", question_count=20)
+    for position in range(1, 21):
+        repo.issue_next_question(session.id)
+        repo.record_answer(session.id, position, "A")
+
+    rows = repo.ranking(world["team"])
+
+    assert [r.user_id for r in rows] == [world["user"], teammate]
+    assert (rows[0].rank_position, rows[0].questions_seen, rows[0].correct_count) == (1, 20, 20)
+    assert rows[0].accuracy_pct == 100.0
+    assert rows[1].rank_position is None
+    assert (rows[1].questions_seen, rows[1].accuracy_pct) == (0, None)
+    assert repo.ranking(uuid4()) == []
+
+
 # --- extremo a extremo con el ranking --------------------------------------------------------
 
 

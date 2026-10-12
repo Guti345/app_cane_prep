@@ -7,7 +7,7 @@ probado contra Supabase se marca como tal.
 
 | Capa | Tecnología | Destino previsto | Estado |
 | --- | --- | --- | --- |
-| Frontend | TypeScript + Vite, sitio estático | Netlify | Pantalla mínima; sin login ni juego; sin desplegar |
+| Frontend | TypeScript + Vite, sitio estático | Netlify | Login, inicio, pregunta con cronómetro, resultado, resumen y ranking; probado en local; sin desplegar |
 | Backend | Python + FastAPI | Render | API de juego implementada y probada en local; sin desplegar |
 | Datos y usuarios | PostgreSQL + Auth | Supabase | Migración probada en un proyecto de pruebas; sin aplicar al real |
 
@@ -91,7 +91,12 @@ modo transacción; SSL por defecto (`sslmode=require`).
 | `POST /sessions/{id}/next` | Emite la siguiente pregunta o repite la pendiente **con el mismo plazo**; registra timeouts vencidos. Nunca devuelve la clave. |
 | `POST /sessions/{id}/answer` | Cuerpo: `position`, `selected_option` (`null` registra el vencimiento). Devuelve acierto, tiempo y `correct_option`. Reenviar devuelve el intento ya guardado. |
 | `POST /sessions/{id}/abandon` | Cierra una sesión activa; no alimenta el ranking. |
+| `GET /sessions/{id}/attempts` | Intentos ya cerrados de la sesión, con su `correct_option`. Solo posiciones respondidas (incluye timeouts registrados por `next`); la pregunta pendiente no aparece. |
+| `GET /ranking` | Filas del ranking del **equipo del usuario verificado**; el equipo no es un parámetro. Sin identificadores de usuario; `is_me` marca la fila propia. Sin puesto (`rank_position: null`) quien tiene menos de 20 preguntas. |
 
+- `server_now` (hora de la base de datos) viaja en la respuesta de `next` y en
+  el estado de la sesión, para que el cliente corrija el desfase de su reloj al
+  mostrar la cuenta atrás.
 - Una sesión ajena responde 404, igual que una inexistente.
 - Las preguntas se eligen entre las **últimas revisiones activas y `ready`** de
   cada pregunta fuente, al azar; en simulacro, con el mismo cupo por área.
@@ -104,6 +109,8 @@ modo transacción; SSL por defecto (`sslmode=require`).
 | --- | --- | --- |
 | Rutas y contrato | `tests/test_game_api.py`, `tests/test_auth.py` | HTTP con un repositorio en memoria y un verificador falso. |
 | Repositorio real | `tests/integration/` | `PostgresGameRepository` contra **la migración real** en un PostgreSQL local (PGlite). Cada prueba corre en una transacción que se revierte. |
+| Frontend | `frontend/src/*.test.ts` | Cronómetro (desfase de reloj, recarga, vencimiento), máquina de estados, cliente de API con **respuestas reales** capturadas del backend, pantallas (HTML tratado como texto) y reglas de seguridad sobre el código. |
+| Frontend ↔ backend | `frontend/src/e2e.test.ts` | Recorrido completo contra un backend real. Se omite salvo que existan `CANE_E2E_API_URL` y `CANE_E2E_TOKEN`. |
 
 Límites de las pruebas de integración: PGlite es PostgreSQL real, pero **no es
 Supabase** (versión 18.3; los roles `anon`, `authenticated`, `service_role` y
@@ -116,9 +123,11 @@ la Data API.
 - `GET /health` → `{"ok": true}`, sin base de datos ni claves.
 - API de juego completa en local (sesiones, preguntas, respuestas, abandono),
   con autenticación por Supabase Auth y repositorio PostgreSQL.
-- Pantalla con un botón para consultar `/health`.
+- Frontend con las seis pantallas (ver [`frontend-esqueleto.md`](frontend-esqueleto.md)),
+  texto plano en los enunciados.
 - Una migración SQL, probada en un proyecto de pruebas y **no aplicada al
   proyecto real**.
 
-No existen: login en el frontend, banco de preguntas cargado, usuarios y
-perfiles del equipo, endpoint de ranking, despliegues.
+No existen: banco de preguntas cargado, usuarios y perfiles del equipo,
+Markdown/LaTeX ni recursos (imágenes) en las preguntas, repetir sesión,
+despliegues.

@@ -179,6 +179,7 @@ def test_next_returns_question_without_correct_option(api):
     assert not find_keys(question, "correct_option")
     assert set(question) == {
         "position", "area", "statement_md", "options", "assets", "deadline_at",
+        "server_now",
     }
 
 

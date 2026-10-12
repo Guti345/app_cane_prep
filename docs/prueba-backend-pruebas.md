@@ -245,6 +245,19 @@ $s20 = (Call POST /sessions @{ mode='random'; question_count=20 }).Data.id
 (Call GET "/sessions/$s20").Data.status             # completed
 ```
 
+### 6.5b Hora del servidor, intentos y ranking
+
+```powershell
+$n = (Call POST /sessions @{ mode='random'; question_count=2 }).Data.id
+$p = Call POST "/sessions/$n/next"
+$p.Data.server_now                                       # hora del servidor (B1)
+((Get-Date $p.Data.deadline_at) - (Get-Date $p.Data.server_now)).TotalSeconds   # ~90
+
+$null = Call POST "/sessions/$n/answer" @{ position=1; selected_option='A' }
+(Call GET "/sessions/$n/attempts").Data                  # solo la posición 1 (B3)
+(Call GET /ranking).Data | Format-Table                  # tu fila con is_me = True, sin ids (B2)
+```
+
 ### 6.6 (Opcional) Una segunda persona: sesión ajena = 404
 
 Crea otro usuario en Authentication, añade su perfil en el mismo equipo con

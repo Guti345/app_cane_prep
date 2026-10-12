@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_current_user, get_repository
 from app.domain import (
+    Attempt,
     CurrentUser,
     GameRepository,
     InvalidOption,
@@ -30,6 +31,7 @@ from app.schemas import (
     CreateSessionIn,
     OptionOut,
     QuestionOut,
+    RankingRowOut,
     SessionOut,
 )
 
@@ -56,6 +58,18 @@ def _session_out(s: SessionState) -> SessionOut:
         answered_count=s.answered_count,
         current_position=s.current_position,
         current_deadline_at=s.current_deadline_at,
+        server_now=s.server_now,
+    )
+
+
+def _attempt_out(a: Attempt) -> AttemptOut:
+    return AttemptOut(
+        position=a.position,
+        selected_option=a.selected_option,
+        is_correct=a.is_correct,
+        timed_out=a.timed_out,
+        time_used_ms=a.time_used_ms,
+        correct_option=a.correct_option,
     )
 
 
@@ -116,6 +130,7 @@ def next_question(
         options=[OptionOut(label=o.label, text_md=o.text_md) for o in q.options],
         assets=list(q.assets),
         deadline_at=q.deadline_at,
+        server_now=q.server_now,
     )
 
 
@@ -137,14 +152,19 @@ def answer(
         raise HTTPException(status_code=409, detail="La pregunta no ha sido emitida") from None
     except InvalidOption:
         raise HTTPException(status_code=422, detail="Opción inválida para la pregunta") from None
-    return AttemptOut(
-        position=a.position,
-        selected_option=a.selected_option,
-        is_correct=a.is_correct,
-        timed_out=a.timed_out,
-        time_used_ms=a.time_used_ms,
-        correct_option=a.correct_option,
-    )
+    return _attempt_out(a)
+
+
+@router.get("/{session_id}/attempts", response_model=list[AttemptOut])
+def attempts(
+    session_id: UUID,
+    user: CurrentUser = Depends(get_current_user),
+    repo: GameRepository = Depends(get_repository),
+) -> list[AttemptOut]:
+    """Intentos ya cerrados de la sesión (con su clave). Solo posiciones
+    respondidas: la pregunta pendiente no aparece."""
+    _owned_session(repo, session_id, user)
+    return [_attempt_out(a) for a in repo.list_attempts(session_id)]
 
 
 @router.post("/{session_id}/abandon", response_model=SessionOut)
@@ -161,4 +181,29 @@ def abandon(
     return _session_out(session)
 
 
-__all__ = ["router"]
+ranking_router = APIRouter(tags=["juego"])
+
+
+@ranking_router.get("/ranking", response_model=list[RankingRowOut])
+def ranking(
+    user: CurrentUser = Depends(get_current_user),
+    repo: GameRepository = Depends(get_repository),
+) -> list[RankingRowOut]:
+    """Ranking del equipo del usuario verificado. El equipo no es un
+    parámetro: sale de la identidad, así que no se puede pedir el de otro."""
+    return [
+        RankingRowOut(
+            display_name=r.display_name,
+            rank_position=r.rank_position,
+            questions_seen=r.questions_seen,
+            correct_count=r.correct_count,
+            accuracy_pct=r.accuracy_pct,
+            avg_time_seconds=r.avg_time_seconds,
+            sessions_completed=r.sessions_completed,
+            is_me=r.user_id == user.user_id,
+        )
+        for r in repo.ranking(user.team_id)
+    ]
+
+
+__all__ = ["router", "ranking_router"]

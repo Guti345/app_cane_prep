@@ -32,6 +32,7 @@ from app.domain import (
     Option,
     OptionLabel,
     QuestionNotIssued,
+    RankingRow,
     SessionClosed,
     SessionNotFound,
     SessionState,
@@ -68,7 +69,8 @@ _STATE_SQL = f"""
            s.question_count, s.status,
            (SELECT count(*) FROM public.attempts a WHERE a.session_id = s.id) AS answered_count,
            cur.position AS current_position,
-           cur.deadline_at AS current_deadline_at
+           cur.deadline_at AS current_deadline_at,
+           clock_timestamp() AS server_now
     FROM public.sessions s
     LEFT JOIN LATERAL (
         SELECT sq.position, sq.deadline_at
@@ -88,6 +90,18 @@ _ATTEMPT_SQL = """
       ON sq.session_id = a.session_id AND sq.position = a.position
     JOIN public.question_keys k ON k.question_id = sq.question_id
     WHERE a.session_id = %s AND a.position = %s
+"""
+
+# Solo posiciones con intento: la clave de una pregunta abierta no se toca.
+_ATTEMPTS_OF_SESSION_SQL = """
+    SELECT a.position, a.selected_option, a.is_correct, a.timed_out,
+           a.time_used_ms, k.correct_option
+    FROM public.attempts a
+    JOIN public.session_questions sq
+      ON sq.session_id = a.session_id AND sq.position = a.position
+    JOIN public.question_keys k ON k.question_id = sq.question_id
+    WHERE a.session_id = %s
+    ORDER BY a.position
 """
 
 _FINISHED = object()
@@ -196,6 +210,39 @@ class PostgresGameRepository:
                 )
             return self._read_state(conn, session_id)
 
+    # --- resultados y ranking -------------------------------------------
+    def list_attempts(self, session_id: UUID) -> list[Attempt]:
+        with self._tx() as conn:
+            rows = conn.execute(_ATTEMPTS_OF_SESSION_SQL, (session_id,)).fetchall()
+        return [self._to_attempt(r) for r in rows]
+
+    def ranking(self, team_id: UUID) -> list[RankingRow]:
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT user_id, display_name, rank_position, questions_seen, "
+                "       correct_count, accuracy_pct, avg_time_seconds, sessions_completed "
+                "FROM public.practice_ranking WHERE team_id = %s "
+                "ORDER BY rank_position NULLS LAST, display_name",
+                (team_id,),
+            ).fetchall()
+
+        def number(value: Any) -> float | None:
+            return None if value is None else float(value)
+
+        return [
+            RankingRow(
+                user_id=r["user_id"],
+                display_name=r["display_name"],
+                rank_position=r["rank_position"],
+                questions_seen=r["questions_seen"],
+                correct_count=r["correct_count"],
+                accuracy_pct=number(r["accuracy_pct"]),
+                avg_time_seconds=number(r["avg_time_seconds"]),
+                sessions_completed=r["sessions_completed"],
+            )
+            for r in rows
+        ]
+
     # --- preguntas -------------------------------------------------------
     def issue_next_question(self, session_id: UUID) -> IssuedQuestion:
         with self._tx() as conn:
@@ -263,7 +310,7 @@ class PostgresGameRepository:
     def _question(conn: psycopg.Connection[Any], row: dict[str, Any]) -> IssuedQuestion:
         # Columnas explícitas: la clave vive en otra tabla y no se consulta aquí.
         q = conn.execute(
-            "SELECT area, statement_md, options, assets "
+            "SELECT area, statement_md, options, assets, clock_timestamp() AS server_now "
             "FROM public.questions WHERE id = %s",
             (row["question_id"],),
         ).fetchone()
@@ -274,6 +321,7 @@ class PostgresGameRepository:
             statement_md=q["statement_md"],
             options=tuple(Option(label=o["label"], text_md=o["text_md"]) for o in q["options"]),
             deadline_at=row["deadline_at"],
+            server_now=q["server_now"],
             assets=tuple(q["assets"]),
         )
 
@@ -364,8 +412,10 @@ class PostgresGameRepository:
         conn: psycopg.Connection[Any], session_id: UUID, position: int
     ) -> Attempt | None:
         row = conn.execute(_ATTEMPT_SQL, (session_id, position)).fetchone()
-        if row is None:
-            return None
+        return None if row is None else PostgresGameRepository._to_attempt(row)
+
+    @staticmethod
+    def _to_attempt(row: dict[str, Any]) -> Attempt:
         return Attempt(
             position=row["position"],
             selected_option=row["selected_option"],
@@ -392,4 +442,5 @@ class PostgresGameRepository:
             answered_count=row["answered_count"],
             current_position=row["current_position"],
             current_deadline_at=row["current_deadline_at"],
+            server_now=row["server_now"],
         )
