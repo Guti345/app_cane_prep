@@ -1,10 +1,11 @@
 # Frontend: diseño e implementación
 
-**Estado: implementado y probado en local** (2026-10-11). Cubre las fases 1 a 3
-con texto plano en los enunciados; las decisiones tomadas están al final. Lo
-que no está hecho: Markdown/LaTeX, recursos (imágenes), pruebas en un
-navegador real y despliegue en Netlify. Probado contra el backend con
-PostgreSQL local y un Auth falso; **no** contra `pruebas_cane`.
+**Estado: implementado; probado en local y en un navegador real contra
+`pruebas_cane`** (2026-10-12, resultado informado por el usuario: inicio de
+sesión, sesión con cronómetro, recarga a mitad, ranking y CORS). Cubre las
+fases 1 a 3 con texto plano en los enunciados; las decisiones tomadas están al
+final. Lo que no está hecho: Markdown/LaTeX, recursos (imágenes), pruebas con
+lector de pantalla y en móvil, y despliegue en Netlify.
 
 Los cambios al backend B1, B2 y B3 se implementaron (ver
 [`arquitectura.md`](arquitectura.md)).
@@ -209,8 +210,8 @@ Abiertas:
    Se cierra con el importador, sin revelar la clave resaltada. Hoy el cliente
    recibe `assets` pero no los dibuja.
 2. Textos finales de la interfaz y pulido móvil (fase 4).
-3. **Pruebas en un navegador real**: las de pantalla usan happy-dom; falta
-   probar con un navegador y con lector de pantalla.
+3. **Lector de pantalla y móvil**: el recorrido ya se probó en un navegador de
+   escritorio real; falta probarlo con lector de pantalla y en un teléfono.
 4. Si "Continuar" debe funcionar entre dispositivos, habría que añadir
    `GET /sessions?status=active`.
 

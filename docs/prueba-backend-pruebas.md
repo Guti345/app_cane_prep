@@ -27,11 +27,19 @@ usuario; Auth y PostgreSQL reales de Supabase):
 | 6.5 simulacro final; ranking | 4 preguntas; puesto 1, 20 vistas, 19 aciertos, 95 %, 4,14 s |
 | 6.5b `server_now`, intentos, ranking | `server_now` correcto, plazo de 89,9 s, solo la posición 1, sin ids |
 
-**Pendiente de esa corrida:** la prueba de aislamiento entre usuarios (6.6)
-**no se ejecutó**: faltaba un segundo usuario y el 401 obtenido no prueba nada.
-El aislamiento sí está verificado en local (backend con PostgreSQL local y dos
-usuarios: 404 en `GET`, `next`, `answer`, `attempts` y `abandon`), pero no
-contra Supabase real.
+**Aislamiento entre usuarios (6.6), ejecutado después contra `pruebas_cane`**
+(2026-10-12, resultado informado por el usuario; backend local, Auth y
+PostgreSQL reales): con dos usuarios del **mismo equipo**, el usuario 1 crea una
+sesión (201) y, con el token del usuario 2, `GET`, `next`, `answer`, `attempts`
+y `abandon` sobre ella dan **404**. La sesión del usuario 1 sigue `active`, sin
+cambios.
+
+Además, en el navegador (localhost:5173, mismo proyecto): inicio de sesión,
+sesión con cronómetro, recarga a mitad y ranking funcionan sin errores, y
+**CORS funcionó con un navegador real**. Con un tercer usuario en un equipo B,
+cada ranking muestra solo a su propio equipo, en las dos direcciones. Mover un
+perfil con sesiones a otro equipo lo bloquea la FK
+`sessions_user_id_team_id_fkey`, como se esperaba.
 
 Además, los pasos se validaron en PowerShell 5.1 contra el mismo backend con
 PostgreSQL local y un Auth falso. Las diferencias previsibles están en

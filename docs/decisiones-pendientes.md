@@ -44,13 +44,17 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
 
 - **Probado contra `pruebas_cane`** (2026-10-12, resultado informado por el
   usuario): Auth real, PostgreSQL real, recorrido completo, timeout con `next`,
-  `server_now`, intentos y ranking. Sigue sin probarse contra Supabase real:
-  - **aislamiento entre dos usuarios** (no se ejecutó: faltaba el segundo
-    usuario); verificado solo en local;
-  - **qué cadena de conexión se usó** (directa o *session pooler*): anotarla,
-    porque condiciona el despliegue en Render;
-  - el acceso a la **Data API** con la clave publicable (que `question_keys`
-    no devuelva filas).
+  `server_now`, intentos y ranking. Verificado también el **aislamiento**:
+  entre compañeros del mismo equipo (404 en las cinco rutas de sesión) y entre
+  equipos (ranking), y el front en un navegador real con CORS.
+  Sigue sin comprobarse:
+  - **la Data API** con la clave publicable (que `question_keys` no devuelva
+    filas, sin token y con token);
+  - **qué cadena de conexión se usa**: se informó como *directa*. Confirmarlo
+    por el host (`db.<ref>.supabase.co` = directa; `…pooler.supabase.com` con
+    usuario `postgres.<ref>` = pooler). Para Render hay que probar la
+    **Session pooler**, porque la directa exige IPv6;
+  - lector de pantalla y navegador móvil.
 - **Concurrencia**: la prueba local usa PGlite (una conexión a la vez) y la
   corrida real fue secuencial, así que el `FOR UPDATE` y el pool no se
   ejercitaron en paralelo.
