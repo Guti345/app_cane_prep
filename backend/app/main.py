@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, load_settings
+from app.routes_game import router as game_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -11,13 +12,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.frontend_origins),
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
     @app.get("/health")
     def health() -> dict[str, bool]:
         return {"ok": True}
+
+    # Esqueleto: responde 501 hasta que haya autenticación y base de datos.
+    app.include_router(game_router)
 
     return app
 

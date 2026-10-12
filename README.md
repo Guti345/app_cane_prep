@@ -11,7 +11,7 @@ ranking, base de datos aplicada ni despliegues.
 | Pieza | Estado |
 | --- | --- |
 | Frontend (Vite + TypeScript) | Pantalla con un botón que consulta `GET /health` |
-| Backend (FastAPI) | Solo `GET /health` → `{"ok": true}` y CORS |
+| Backend (FastAPI) | `GET /health` → `{"ok": true}`, CORS y un esqueleto de sesiones, preguntas y respuestas que responde **501** (sin auth ni base de datos; solo pruebas locales) |
 | Supabase | `config.toml` y una migración **pendiente de revisión y aplicación**, sin ejecutar en ninguna base. Guía en [`docs/supabase.md`](docs/supabase.md); nada aplicado al remoto |
 | Netlify / Render | Sin configurar ni desplegar |
 
@@ -41,8 +41,9 @@ app_cane_prep/
     netlify.toml       build y publicación (base del sitio: frontend)
     .env.example       VITE_API_URL
   backend/             FastAPI
-    app/               main.py, config.py
-    tests/             test_health.py
+    app/               main.py, config.py, domain.py, schemas.py,
+                       routes_game.py, dependencies.py
+    tests/             test_health.py, test_game_api.py, fakes.py
     requirements.txt, requirements-dev.txt, .env.example
   supabase/
     config.toml        Configuración de la CLI (preexistente)

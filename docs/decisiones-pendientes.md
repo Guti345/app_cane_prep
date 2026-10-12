@@ -8,7 +8,7 @@ migración, que aun así **no se ha aplicado ni ejecutado**.
 | Tema | Decisión |
 | --- | --- |
 | Cronómetro | 90 s fijo, documentado. `time_limit_seconds` solo admite 90. No es configurable en el MVP. |
-| Ranking | Mínimo 20 preguntas distintas; orden por precisión (% de aciertos) y desempate por **tiempo total**. |
+| Ranking | Mínimo 20 preguntas distintas; orden por precisión (% de aciertos) y desempate por **tiempo promedio** por pregunta. |
 | Intentos que cuentan | Solo el primer intento por pregunta y persona, en sesiones completadas. Un timeout cuenta como fallo. |
 | Borrado de usuarios | En cascada (se pierde su historial). |
 | Activar preguntas | Solo con `verified_at` en su clave. |
@@ -24,19 +24,34 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md) y
 
 ### Migración y base de datos
 
-- **Probar la migración**: sin ejecutar en ninguna base. Pendiente crear el
-  proyecto de pruebas y correr [`prueba-migracion.sql`](prueba-migracion.sql)
-  (sin Docker en este equipo).
-- **Puntos técnicos T2-T6** de la revisión, sin aplicar: `pgcrypto`, permisos
-  por defecto y Data API, `BEGIN`/`COMMIT` internos, `repeated_from` frente a
-  sesiones cerradas, índices. Se decidirán con el resultado de la prueba.
+- **Volver a probar la migración**: la versión anterior pasó 14/14 en el
+  proyecto de pruebas; la actual (ranking por promedio, sin `BEGIN`/`COMMIT`)
+  aún no se ha ejecutado. Pasos en [`supabase.md`](supabase.md).
+- **T4 sin verificar**: que la CLI aplique la migración sin `BEGIN`/`COMMIT`
+  de forma atómica se confirma al aplicarla con la CLI en pruebas.
 - **Aplicar al proyecto real**: requiere autorización explícita tras una
-  prueba aprobada.
+  prueba aprobada. Guía en [`supabase.md`](supabase.md); no ejecutada.
 - **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
   (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
   `config push` o de usar la pila local. Verificar también el panel.
 - **Regla del timeout**: queda como fallo con `90000` ms; falta documentarla
   de cara al usuario.
+
+### API de juego (esqueleto)
+
+- **Vencimiento sin respuesta**: hoy el cliente debe enviar `answer` con
+  `selected_option = null` para registrar el timeout. Si cierra la pestaña, la
+  sesión queda activa. Decidir si `next` debe registrar automáticamente el
+  vencimiento de la pregunta anterior.
+- **Tamaño de sesiones de área y aleatorias**: `question_count` se pide al
+  cliente con un tope provisional de 50 (`MAX_QUESTIONS_PER_SESSION`). No es
+  una regla acordada.
+- **Selección de preguntas**: orden, aleatoriedad y qué pasa con preguntas
+  repetidas entre sesiones. El SQL deja la selección a FastAPI.
+- **Repetir sesión** (`repeated_from`) y **ranking** (`GET /ranking`): sin
+  ruta todavía.
+- **Códigos de estado**: 501 mientras no haya auth ni base; 409 para sesión
+  cerrada o pregunta no emitida; 404 para sesión ajena.
 
 ### Auth, datos y despliegues
 

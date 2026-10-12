@@ -7,7 +7,12 @@
 -- revierte todo y muestra el resultado de cada comprobación. Un error distinto
 -- al final significa que la preparación falló: léelo antes de seguir.
 -- Los datos son ficticios (preguntas y claves inventadas para la prueba).
--- Este script no se ha ejecutado todavía.
+--
+-- Historial: la versión anterior (ranking por tiempo total) pasó 14/14 el
+-- 2026-10-09 en el proyecto de pruebas. Esta versión (ranking por tiempo
+-- PROMEDIO, migración sin BEGIN/COMMIT) aún no se ha ejecutado. El proyecto de
+-- pruebas conserva el esquema anterior: límpialo con
+-- docs/limpiar-proyecto-pruebas.sql y vuelve a aplicar la migración.
 
 DO $test$
 DECLARE
@@ -20,8 +25,10 @@ DECLARE
   v_s uuid;
   v_s_u2 uuid;
   v_t timestamptz;
-  v_ages integer[] := ARRAY[1,10,1];   -- segundos usados por pregunta (usuarios 1..3)
-  v_wrong integer[] := ARRAY[0,0,1];   -- preguntas falladas (usuarios 1..3)
+  -- Usuarios 1..3 del ranking (T08):
+  v_nq integer[]    := ARRAY[40,20,20];  -- preguntas respondidas
+  v_ages integer[]  := ARRAY[4,5,1];     -- segundos usados por pregunta
+  v_wrong integer[] := ARRAY[0,0,1];     -- preguntas falladas
   v_opts jsonb := '[{"label":"A","text_md":"a"},{"label":"B","text_md":"b"},{"label":"C","text_md":"c"}]';
   a public.attempts%ROWTYPE;
   r text;
@@ -140,8 +147,13 @@ BEGIN
       || format('T07 respuesta tardía = timeout (timed_out=%s, is_correct=%s, opción=%s, %s ms)',
                 a.timed_out, a.is_correct, coalesce(a.selected_option, 'NULL'), a.time_used_ms) || E'\n';
 
-  -- ---------------- T08 ranking: precisión primero, luego tiempo total
-  FOR i IN 1..20 LOOP
+  -- ------- T08 ranking: precisión primero, luego tiempo PROMEDIO por pregunta
+  -- Usuario 1: 40 preguntas, 100 %, ~4 s c/u  (promedio 4 s, total ~160 s)
+  -- Usuario 2: 20 preguntas, 100 %, ~5 s c/u  (promedio 5 s, total ~100 s)
+  -- Usuario 3: 20 preguntas,  95 %, ~1 s c/u  (más rápido, pero menos preciso)
+  -- Con tiempo promedio: 1 > 2 > 3. Con tiempo total saldría 2 > 1 > 3, así
+  -- que esta prueba distingue ambos criterios.
+  FOR i IN 1..40 LOOP
     INSERT INTO public.questions(bank_id, source_id, area, source_number, source_pages, statement_md, options)
     VALUES ('prueba', 'r' || i, 'macroeconomia', i, ARRAY[1], 'Enunciado ficticio ' || i, v_opts)
     RETURNING id INTO v_q;
@@ -152,12 +164,12 @@ BEGIN
 
   FOR i IN 1..3 LOOP
     INSERT INTO public.sessions(user_id, team_id, mode, question_count)
-    VALUES (v_users[i], v_team, 'random', 20) RETURNING id INTO v_s;
+    VALUES (v_users[i], v_team, 'random', v_nq[i]) RETURNING id INTO v_s;
     IF i = 2 THEN v_s_u2 := v_s; END IF;
-    FOR p IN 1..20 LOOP
+    FOR p IN 1..v_nq[i] LOOP
       INSERT INTO public.session_questions(session_id, position, question_id) VALUES (v_s, p, v_qs[p]);
     END LOOP;
-    FOR p IN 1..20 LOOP
+    FOR p IN 1..v_nq[i] LOOP
       v_t := clock_timestamp() - make_interval(secs => v_ages[i]);
       UPDATE public.session_questions
          SET issued_at = v_t, deadline_at = v_t + interval '90 seconds'
@@ -168,8 +180,7 @@ BEGIN
     UPDATE public.sessions SET status = 'completed' WHERE id = v_s;
   END LOOP;
 
-  -- Esperado: usuario 1 (100 %, ~20 s) = 1; usuario 2 (100 %, ~200 s) = 2;
-  -- usuario 3 (95 %, ~20 s) = 3, aunque sea más rápido que el 2.
+  -- Esperado: usuario 1 = puesto 1, usuario 2 = 2, usuario 3 = 3.
   FOR i IN 1..3 LOOP
     SELECT rank_position INTO n FROM public.practice_ranking WHERE user_id = v_users[i];
     res := res || CASE WHEN n = i THEN 'OK    ' ELSE 'FALLA ' END

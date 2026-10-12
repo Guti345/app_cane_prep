@@ -1,6 +1,8 @@
 -- CANE MVP, propuesta v1 con las decisiones del 2026-10-09. PostgreSQL/Supabase
 -- nuevo. Ejecutar una vez (no es idempotente).
--- ESTADO: pendiente de revisión y aplicación. Sintaxis analizada; NO ejecutada.
+-- ESTADO: NO aplicada al proyecto real. Una versión anterior (con BEGIN/COMMIT y
+-- ranking por tiempo total) pasó 14/14 pruebas en el proyecto de pruebas; esta
+-- versión debe volver a probarse (docs/supabase.md).
 -- NO contiene cuentas reales ni secretos. Auth gestiona identidades y contraseñas.
 -- El frontend solo usa Auth; FastAPI se conecta directo a PostgreSQL con el rol
 -- postgres (MVP), con DATABASE_URL solo en el servidor. Ver docs/supabase.md.
@@ -9,12 +11,17 @@
 --
 -- Cambios respecto del SQL original (docs/revision-sql-supabase.md):
 --  D1  time_limit_seconds fijo en 90 (CHECK = 90).
---  D2  Ranking: precisión DESC y tiempo TOTAL ASC; sin "aciertos" como criterio.
+--  D2  Ranking: precisión DESC y tiempo PROMEDIO por pregunta ASC; sin
+--      "aciertos" ni tiempo total como criterio.
 --  D5  Una pregunta solo puede estar activa con verified_at en su clave.
 --  T1  Sin GRANT a service_role: el backend usa el rol postgres.
+--  T4  Sin BEGIN/COMMIT explícitos: la CLI y el SQL Editor ya aplican las
+--      sentencias en su propia transacción. Si se ejecuta con otra
+--      herramienta (p. ej. psql), envolver el archivo en una transacción.
 -- Sin cambio y decididos: D3 primer intento y timeout cuenta como fallo,
 -- D4 borrado en cascada, D6 máximo cinco miembros por equipo.
-BEGIN;
+-- Convención (T3): toda tabla nueva lleva ENABLE ROW LEVEL SECURITY y REVOKE a
+-- PUBLIC, anon y authenticated en su propia migración.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE SCHEMA IF NOT EXISTS cane_private;
 REVOKE ALL ON SCHEMA cane_private FROM PUBLIC, anon, authenticated;
@@ -322,8 +329,8 @@ CREATE TRIGGER sessions_finish BEFORE UPDATE ON public.sessions
 -- RANKING (D2, D3): primera respuesta a cada pregunta fuente en sesión completada.
 -- Un timeout cuenta como fallo y como primera respuesta. No hay puntos por repetir.
 -- Posición solo después de 20 preguntas distintas.
--- Orden: precisión (% de aciertos) DESC, tiempo TOTAL ASC. Empates exactos
--- comparten puesto. correct_count y avg_time_seconds se muestran, no desempatan.
+-- Orden: precisión (% de aciertos) DESC, tiempo PROMEDIO por pregunta ASC.
+-- Empates exactos comparten puesto. correct_count se muestra, no desempata.
 CREATE VIEW public.practice_ranking WITH (security_invoker=true) AS
 WITH first_answers AS (
  SELECT DISTINCT ON (s.user_id,q.bank_id,q.source_id)
@@ -337,19 +344,18 @@ WITH first_answers AS (
  SELECT user_id,count(*) AS questions_seen,
  count(*) FILTER (WHERE is_correct) AS correct_count,
  avg(is_correct::integer::numeric) AS accuracy_ratio,
- avg(time_used_ms::numeric) AS avg_time_ms,
- sum(time_used_ms::numeric) AS total_time_ms
+ avg(time_used_ms::numeric) AS avg_time_ms
  FROM first_answers GROUP BY user_id
 ), eligible AS (
  SELECT p.team_id,t.user_id,
- rank() OVER (PARTITION BY p.team_id ORDER BY t.accuracy_ratio DESC,t.total_time_ms ASC) AS rank_position
+ rank() OVER (PARTITION BY p.team_id ORDER BY t.accuracy_ratio DESC,t.avg_time_ms ASC) AS rank_position
  FROM totals t JOIN public.profiles p ON p.id=t.user_id WHERE t.questions_seen>=20
 ), completed AS (
  SELECT user_id,count(*) AS sessions_completed FROM public.sessions WHERE status='completed' GROUP BY user_id
 )
 SELECT p.team_id,p.id AS user_id,p.display_name,e.rank_position,
  coalesce(t.questions_seen,0) AS questions_seen,coalesce(t.correct_count,0) AS correct_count,
- round(100*t.accuracy_ratio,2) AS accuracy_pct,round(t.total_time_ms/1000,2) AS total_time_seconds,
+ round(100*t.accuracy_ratio,2) AS accuracy_pct,
  round(t.avg_time_ms/1000,2) AS avg_time_seconds,
  coalesce(c.sessions_completed,0) AS sessions_completed
 FROM public.profiles p LEFT JOIN totals t ON t.user_id=p.id
@@ -368,7 +374,6 @@ REVOKE ALL ON public.teams,public.profiles,public.questions,public.question_keys
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA cane_private FROM PUBLIC,anon,authenticated;
 -- T1: sin GRANT adicionales. El backend se conecta con el rol postgres (propietario
 -- de estos objetos) mediante DATABASE_URL, que solo existe en el servidor.
-COMMIT;
 
 -- BOOTSTRAP MANUAL (sustituir UUID reales; no ejecutar estos comentarios como están):
 -- INSERT INTO public.teams(name) VALUES ('Equipo CANE') RETURNING id;

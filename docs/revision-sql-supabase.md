@@ -5,11 +5,13 @@ ni se cambió ninguna regla. El archivo original vive en
 `private-data/supabase_cane.sql` (local, ignorado por Git); los números de línea
 se refieren a esa copia.
 
-> **Actualización (2026-10-09, después de las decisiones):** D1, D2, D5 y T1
-> se aplicaron en `supabase/migrations/20261009212148_supabase_cane.sql`; D3,
-> D4 y D6 ya eran así y no cambiaron. T2-T6 **no se aplicaron**. Las decisiones
-> y su efecto están en [`supabase.md`](supabase.md). Lo que sigue es la revisión
-> original, conservada tal cual; no se ha ejecutado nada.
+> **Actualización posterior a las decisiones:** D1, D2, D5, T1 y T4 se
+> aplicaron en `supabase/migrations/20261009212148_supabase_cane.sql`; D3, D4 y
+> D6 ya eran así. T2, T3, T5 y T6 quedaron cerrados sin cambiar el SQL. La
+> decisión final de **D2 es tiempo promedio por pregunta**, no tiempo total
+> (el texto de D2 más abajo es el original y menciona ambas opciones). Estado y
+> pruebas: [`supabase.md`](supabase.md). Lo que sigue es la revisión original,
+> conservada tal cual.
 
 ## Qué se comprobó y qué no
 
