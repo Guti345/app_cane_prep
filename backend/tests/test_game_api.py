@@ -72,7 +72,7 @@ def new_session(api, **body):
 # --- seguro por defecto ------------------------------------------------------
 
 
-def test_game_routes_are_not_implemented_by_default():
+def test_game_routes_are_unavailable_without_configuration():
     client = TestClient(create_app(Settings(frontend_origins=(ORIGIN,))))
     sid = uuid4()
 
@@ -84,7 +84,7 @@ def test_game_routes_are_not_implemented_by_default():
         client.post(f"/sessions/{sid}/abandon"),
     ]
 
-    assert [r.status_code for r in responses] == [501] * 5
+    assert [r.status_code for r in responses] == [503] * 5
 
 
 def test_health_still_works_without_auth_or_database():
@@ -210,6 +210,35 @@ def test_next_does_not_advance_until_current_is_answered(api):
     api.post(f"/sessions/{sid}/next")
 
     assert api.post(f"/sessions/{sid}/next").json()["position"] == 1
+
+
+def test_next_registers_an_expired_question_as_timeout_and_moves_on(api, clock):
+    sid = new_session(api, mode="random", question_count=2)["id"]
+    first = api.post(f"/sessions/{sid}/next").json()
+    clock.advance(91)
+
+    second = api.post(f"/sessions/{sid}/next").json()
+
+    assert second["position"] == 2
+    assert second["deadline_at"] > first["deadline_at"]
+    state = api.get(f"/sessions/{sid}").json()
+    assert state["answered_count"] == 1
+    # El intento 1 quedó como timeout: reenviar devuelve ese resultado.
+    attempt = api.post(
+        f"/sessions/{sid}/answer", json={"position": 1, "selected_option": "A"}
+    ).json()
+    assert attempt["timed_out"] is True
+
+
+def test_next_after_the_last_expired_question_completes_the_session(api, clock):
+    sid = new_session(api, mode="random", question_count=1)["id"]
+    api.post(f"/sessions/{sid}/next")
+    clock.advance(91)
+
+    response = api.post(f"/sessions/{sid}/next")
+
+    assert response.status_code == 409
+    assert api.get(f"/sessions/{sid}").json()["status"] == "completed"
 
 
 # --- responder ---------------------------------------------------------------------

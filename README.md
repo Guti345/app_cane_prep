@@ -11,7 +11,7 @@ ranking, base de datos aplicada ni despliegues.
 | Pieza | Estado |
 | --- | --- |
 | Frontend (Vite + TypeScript) | Pantalla con un botón que consulta `GET /health` |
-| Backend (FastAPI) | `GET /health` → `{"ok": true}`, CORS y un esqueleto de sesiones, preguntas y respuestas que responde **501** (sin auth ni base de datos; solo pruebas locales) |
+| Backend (FastAPI) | `GET /health`, CORS y la API de juego (sesiones, preguntas, respuestas) con autenticación por Supabase Auth y repositorio PostgreSQL. **Probada en local** con PostgreSQL local y un Auth falso; sin probar contra Supabase real ni desplegada. Sin configuración, las rutas de juego responden 503 |
 | Supabase | `config.toml` y una migración **probada en un proyecto de pruebas (14/14) y no aplicada al proyecto real**. Guía en [`docs/supabase.md`](docs/supabase.md) |
 | Netlify / Render | Sin configurar ni desplegar |
 
@@ -42,8 +42,10 @@ app_cane_prep/
     .env.example       VITE_API_URL
   backend/             FastAPI
     app/               main.py, config.py, domain.py, schemas.py,
-                       routes_game.py, dependencies.py
-    tests/             test_health.py, test_game_api.py, fakes.py
+                       routes_game.py, dependencies.py,
+                       supabase_auth.py, postgres.py
+    tests/             pruebas de API y autenticación; integration/ prueba
+                       el repositorio contra la migración (PostgreSQL local)
     requirements.txt, requirements-dev.txt, .env.example
   supabase/
     config.toml        Configuración de la CLI (preexistente)

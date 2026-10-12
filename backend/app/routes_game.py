@@ -97,7 +97,11 @@ def next_question(
     repo: GameRepository = Depends(get_repository),
 ) -> QuestionOut:
     """Emite la siguiente pregunta; si ya hay una sin responder, la repite
-    con el mismo plazo (recargar no reinicia el cronómetro)."""
+    con el mismo plazo (recargar no reinicia el cronómetro).
+
+    Si la pregunta pendiente ya venció, registra su timeout y emite la
+    siguiente. Si era la última, cierra la sesión y responde 409.
+    """
     _owned_session(repo, session_id, user)
     try:
         q = repo.issue_next_question(session_id)

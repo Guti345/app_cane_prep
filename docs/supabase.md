@@ -35,9 +35,9 @@ El SQL original queda intacto como referencia en
 | `VITE_SUPABASE_URL` | frontend | pública | Ninguno (Auth sin implementar) |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | frontend | pública | Ninguno |
 | `FRONTEND_ORIGIN` | backend | configuración | CORS |
-| `SUPABASE_URL` | backend | configuración | Ninguno |
-| `SUPABASE_PUBLISHABLE_KEY` | backend | configuración | Ninguno |
-| `DATABASE_URL` | backend | **secreta** | Ninguno; `/health` no la usa |
+| `SUPABASE_URL` | backend | configuración | Validar el token del usuario (`/auth/v1/user`) |
+| `SUPABASE_PUBLISHABLE_KEY` | backend | configuración | Cabecera `apikey` de esa llamada |
+| `DATABASE_URL` | backend | **secreta** | Acceso a PostgreSQL; `/health` no la usa. Sin ella, las rutas de juego responden 503 |
 
 - Los valores reales van en `frontend/.env` y en el entorno del backend (Render
   más adelante). Ambos están ignorados por Git; solo se versiona `.env.example`.

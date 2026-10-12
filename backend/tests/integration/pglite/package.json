@@ -1,0 +1,9 @@
+{
+  "name": "cane-prep-pglite-tests",
+  "private": true,
+  "description": "PostgreSQL local (PGlite) solo para las pruebas de integración del backend. No es Supabase.",
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11"
+  }
+}

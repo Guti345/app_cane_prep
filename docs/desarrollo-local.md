@@ -66,6 +66,21 @@ cd backend
 python -m pytest
 ```
 
+### Pruebas de integración (PostgreSQL local)
+
+`backend/tests/integration/` prueba el repositorio contra **la migración real**
+en un PostgreSQL local (PGlite, en memoria, vía Node). No toca Supabase ni
+ningún proyecto remoto. Instalación, una sola vez:
+
+```powershell
+cd backend\tests\integration\pglite
+npm install
+```
+
+Si no está instalado, esas pruebas se **omiten** (no fallan). PGlite es
+PostgreSQL real pero no es Supabase; ver los límites en
+[`arquitectura.md`](arquitectura.md).
+
 Compilar el frontend no demuestra que CORS ni el despliegue funcionen; eso se
 comprueba con ambos servicios en marcha y, más adelante, con las URL reales.
 

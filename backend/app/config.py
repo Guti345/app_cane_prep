@@ -8,8 +8,10 @@ DEFAULT_FRONTEND_ORIGIN = "http://localhost:5173"
 class Settings:
     """Configuración leída del entorno. No abre conexiones ni exige secretos.
 
-    Las variables de Supabase son opcionales y todavía no las usa ningún
-    endpoint: solo fijan el nombre que leerá el código cuando exista.
+    Las variables de Supabase son opcionales: `/health` no las necesita. Sin
+    ellas, las rutas de juego responden 503. `SUPABASE_URL` y
+    `SUPABASE_PUBLISHABLE_KEY` sirven para validar el token del usuario;
+    `DATABASE_URL` (privada) para el acceso a PostgreSQL.
     """
 
     frontend_origins: tuple[str, ...]

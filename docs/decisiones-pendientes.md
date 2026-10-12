@@ -1,9 +1,10 @@
 # Decisiones
 
 Lo cerrado y lo que sigue abierto. Una decisión "cerrada" está reflejada en la
-migración, que aun así **no se ha aplicado ni ejecutado**.
+migración y en el código, que aun así **no se han aplicado ni desplegado** en
+el proyecto real.
 
-## Cerradas (2026-10-09)
+## Cerradas
 
 | Tema | Decisión |
 | --- | --- |
@@ -16,53 +17,59 @@ migración, que aun así **no se ha aplicado ni ejecutado**.
 | Rol del backend | `postgres` en el MVP; `DATABASE_URL` solo en Render. |
 | Nombre de la migración | `npx supabase migration new supabase_cane` → `20261009212148_supabase_cane.sql`. |
 | Pruebas | Proyecto Supabase nuevo y vacío, solo para pruebas. |
+| Vencimiento sin respuesta | `next` registra el timeout de la pregunta vencida y emite la siguiente; si era la última, cierra la sesión (409). |
+| Validación del token | Con Supabase Auth (`GET /auth/v1/user`, equivalente a `get_user`), más perfil de equipo en la base. |
 
-Detalle y trazabilidad en [`supabase.md`](supabase.md) y
-[`revision-sql-supabase.md`](revision-sql-supabase.md).
+Detalle y trazabilidad en [`supabase.md`](supabase.md),
+[`revision-sql-supabase.md`](revision-sql-supabase.md) y
+[`arquitectura.md`](arquitectura.md).
 
 ## Abiertas
 
 ### Migración y base de datos
 
-- **Migración probada, no aplicada al real**: la versión actual pasó 14/14 en
-  el proyecto de pruebas aplicada con la CLI (2026-10-11). Falta la
-  autorización explícita para el `db push` al proyecto real. Guía y
-  comprobaciones previas en [`supabase.md`](supabase.md).
-- **Sin cubrir en las pruebas**: modos `area` y `simulacro`, sesiones
-  abandonadas, concurrencia y acceso real por la Data API. Se cubren al
-  conectar el backend (parte 3).
+- **Migración probada, no aplicada al real**: pasó 14/14 en el proyecto de
+  pruebas aplicada con la CLI (2026-10-11). Falta la autorización explícita
+  para el `db push` al proyecto real. Guía en [`supabase.md`](supabase.md).
 - **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
   (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
   `config push` o de usar la pila local. Verificar también el panel.
-- **Regla del timeout**: queda como fallo con `90000` ms; falta documentarla
-  de cara al usuario.
 
-### API de juego (esqueleto)
+### Backend
 
-- **Vencimiento sin respuesta**: hoy el cliente debe enviar `answer` con
-  `selected_option = null` para registrar el timeout. Si cierra la pestaña, la
-  sesión queda activa. Decidir si `next` debe registrar automáticamente el
-  vencimiento de la pregunta anterior.
-- **Tamaño de sesiones de área y aleatorias**: `question_count` se pide al
+- **Sin probar contra Supabase real**: la llamada a `/auth/v1/user`, el
+  pooler y la Data API solo se probaron con un Auth falso y PostgreSQL local
+  (PGlite). Falta probarlos contra el proyecto de pruebas con `DATABASE_URL` y
+  un usuario real.
+- **Concurrencia**: PGlite atiende una conexión a la vez, así que el
+  `FOR UPDATE` y el pool no se ejercitaron en paralelo.
+- **Conexión en Render**: qué cadena de *Connect* usar (directa requiere IPv6;
+  *session pooler* admite IPv4) y comprobarlo al desplegar. `psycopg-binary`
+  en la plataforma de Render, sin comprobar.
+- **Latencia de `get_user`**: una llamada a Auth por petición. Si molesta, se
+  cachea unos segundos.
+- **Límite de tasa**: no hay. Con cinco usuarios es aceptable; revisar antes de
+  abrir la API.
+- **Tamaño de sesiones de área y aleatorias**: `question_count` lo pide el
   cliente con un tope provisional de 50 (`MAX_QUESTIONS_PER_SESSION`). No es
   una regla acordada.
-- **Selección de preguntas**: orden, aleatoriedad y qué pasa con preguntas
-  repetidas entre sesiones. El SQL deja la selección a FastAPI.
-- **Repetir sesión** (`repeated_from`) y **ranking** (`GET /ranking`): sin
-  ruta todavía.
-- **Códigos de estado**: 501 mientras no haya auth ni base; 409 para sesión
-  cerrada o pregunta no emitida; 404 para sesión ajena.
+- **Selección de preguntas**: hoy al azar entre las últimas revisiones activas;
+  no evita repetir preguntas ya vistas entre sesiones.
+- **Resultado del timeout automático**: si `next` cierra la sesión tras un
+  timeout, el cliente solo ve el 409 y el estado `completed`; no hay endpoint
+  para consultar los intentos de una sesión.
+- **Rutas pendientes**: repetir sesión (`repeated_from`) y `GET /ranking`.
+- **Documentación de la API**: `/docs` y `/openapi.json` están públicos;
+  decidir si se desactivan en producción.
 
-### Auth, datos y despliegues
+### Datos y despliegues
 
 Nada de esto está terminado:
 
 - Auth, las cinco identidades del equipo y sus perfiles.
-- Autorización del API: mecanismo de validación del token de Supabase en el
-  backend (parte 3).
 - Importación privada del banco de preguntas (483 esperadas, no garantizadas
   como habilitadas el primer día).
-- Endpoints de juego.
+- Login en el frontend y pantallas de juego.
 - Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API.
 
 ### Otros

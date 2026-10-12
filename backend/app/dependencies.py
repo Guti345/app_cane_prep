@@ -1,21 +1,52 @@
-"""Dependencias de la API. Seguras por defecto: nada está conectado todavía."""
+"""Dependencias de la API. Seguras por defecto: sin configuración, nada responde."""
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from app.domain import CurrentUser, GameRepository
+from app.supabase_auth import AuthService, AuthUnavailable, InvalidToken, NoProfile
 
 
-def get_current_user() -> CurrentUser:
-    """Identidad verificada del usuario. SIN IMPLEMENTAR.
+def _bearer_token(request: Request) -> str:
+    header = request.headers.get("authorization", "")
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Falta el token de acceso",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token.strip()
 
-    La parte 3 debe validar el token de Supabase y cargar el perfil y equipo
-    desde la base de datos. Hasta entonces, todo endpoint de juego responde
-    501: no existe un modo "sin autenticación" ni una identidad simulada.
-    Las pruebas la sustituyen con `app.dependency_overrides`.
+
+def get_current_user(request: Request) -> CurrentUser:
+    """Identidad verificada: token validado con Supabase Auth + perfil en la base.
+
+    La identidad sale solo de aquí, nunca del cuerpo ni de la URL.
     """
-    raise HTTPException(status_code=501, detail="Autenticación no implementada")
+    auth: AuthService | None = getattr(request.app.state, "auth", None)
+    if auth is None:
+        raise HTTPException(status_code=503, detail="Autenticación no configurada")
+    token = _bearer_token(request)
+    try:
+        return auth.authenticate(token)
+    except InvalidToken:
+        raise HTTPException(
+            status_code=401,
+            detail="Token inválido o vencido",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
+    except NoProfile:
+        raise HTTPException(
+            status_code=403, detail="Tu usuario no tiene un perfil de equipo"
+        ) from None
+    except AuthUnavailable:
+        raise HTTPException(
+            status_code=503, detail="No se pudo verificar la sesión; intenta de nuevo"
+        ) from None
 
 
-def get_repository() -> GameRepository:
-    """Acceso a datos del juego. SIN IMPLEMENTAR (no hay conexión a la base)."""
-    raise HTTPException(status_code=501, detail="Base de datos no conectada")
+def get_repository(request: Request) -> GameRepository:
+    repository: GameRepository | None = getattr(request.app.state, "repository", None)
+    if repository is None:
+        raise HTTPException(status_code=503, detail="Base de datos no configurada")
+    return repository

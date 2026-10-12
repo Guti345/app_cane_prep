@@ -163,10 +163,16 @@ class InMemoryGameRepository:
         s = self._get(session_id)
         if s.status != "active":
             raise SessionClosed()
+        # Decisión: si la pregunta pendiente venció, `next` registra el timeout.
+        for position, (_, deadline) in sorted(s.issued.items()):
+            if position not in s.attempts and self._clock.now >= deadline:
+                q = s.manifest[position - 1]
+                s.attempts[position] = Attempt(position, None, False, True, 90000, q.correct_option)
         pending = next(
             (p for p in range(1, s.question_count + 1) if p not in s.attempts), None
         )
         if pending is None:
+            s.status = "completed"
             raise NothingPending()
         if pending not in s.issued:
             now = self._clock.now
