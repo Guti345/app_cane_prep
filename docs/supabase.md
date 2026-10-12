@@ -8,8 +8,15 @@ paso remoto**. Nada de CANE Prep se ha aplicado al proyecto real.
 | Etapa | Estado |
 | --- | --- |
 | **Preparado localmente** | Contrato de variables de entorno (`.env.example` de frontend y backend), lectura opcional de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `DATABASE_URL` en `backend/app/config.py`. La migración `supabase/migrations/20261009212148_supabase_cane.sql` con las decisiones D1, D2, D5, T1 y T4; los scripts [`prueba-migracion.sql`](prueba-migracion.sql) y [`limpiar-proyecto-pruebas.sql`](limpiar-proyecto-pruebas.sql). |
-| **Probado** | Versión anterior de la migración (ranking por tiempo total, con `BEGIN`/`COMMIT`): 14/14 comprobaciones `OK` en el proyecto de pruebas `pruebas_cane`, el 2026-10-09, aplicada desde el SQL Editor (resultado informado por el usuario). **La versión actual** pasó solo un análisis de sintaxis (pglast) y **debe volver a probarse**: cambió el orden del ranking y se quitó `BEGIN`/`COMMIT`. |
-| **Aplicado remotamente** | Proyecto real: **nada**. Proyecto de pruebas: la versión anterior. |
+| **Probado** | La versión actual de la migración se aplicó con la CLI (`db push`, `migration list` con local y remoto coincidiendo) en el proyecto de pruebas `pruebas_cane`, y `prueba-migracion.sql` dio **14/14 `OK`** en el SQL Editor (resultado informado por el usuario, 2026-10-11). Es el mismo archivo que está en el repo (mismo hash SHA-256 que la copia usada en la prueba); después solo cambió el encabezado de comentarios. |
+| **Aplicado remotamente** | Proyecto real: **nada**. Proyecto de pruebas: la versión actual. |
+
+**Qué cubre la prueba:** RLS y permisos, límite de cinco miembros, plazo fijo
+de 90 s, activación con `verified_at`, evaluación por el servidor, doble envío,
+timeout, ranking (precisión y luego tiempo **promedio**; distingue promedio de
+total), usuario sin 20 preguntas y borrado en cascada. **Qué no cubre:** modos
+`area` y `simulacro`, sesiones abandonadas, concurrencia, el acceso real por la
+Data API con claves, ni objetos futuros (T3 es solo una convención).
 
 Comprobaciones previas en el proyecto real, de solo lectura, ejecutadas por el
 usuario el 2026-10-09: `migration list` sin migraciones locales ni remotas,
@@ -67,16 +74,18 @@ aplicarla. Una sola migración con este SQL.
 Sigue sin confirmar (no cambia el SQL): las reglas de simulacro de 2026 (fases
 de 16/12/8/4 basadas en el reglamento de 2025).
 
-**Sobre T4.** Sin `BEGIN`/`COMMIT`, la migración depende de que la CLI aplique
-las sentencias en una sola transacción junto con el registro del historial.
-Es lo que se espera, pero **no está verificado**: se cierra al aplicarla con la
-CLI en el proyecto de pruebas (Opción B más abajo).
+**Sobre T4.** Sin `BEGIN`/`COMMIT`, la migración se aplicó con la CLI en el
+proyecto de pruebas sin errores y el historial quedó coincidiendo. Eso verifica
+que **funciona** en un proyecto vacío. No prueba qué pasa si una sentencia
+falla a medias (por eso la guía de aplicación dice no repetir el `push` en ese
+caso).
 
-## Probar la versión actual en el proyecto de pruebas
+## Probar la migración en el proyecto de pruebas
 
-El proyecto de pruebas conserva el esquema anterior (vista con
-`total_time_seconds`), así que hay que limpiarlo primero. Esto se hace **solo
-en `pruebas_cane`**.
+**Hecho el 2026-10-11** con la versión actual (resultado arriba). Se conserva el
+procedimiento por si hay que repetirlo tras cualquier cambio de SQL. Si ya se
+aplicó una versión anterior, hay que limpiar primero. Esto se hace **solo en
+`pruebas_cane`**.
 
 1. **Limpiar.** Abre [`limpiar-proyecto-pruebas.sql`](limpiar-proyecto-pruebas.sql),
    cambia a mano `false` por `true` en la línea marcada y ejecútalo en el SQL
@@ -115,18 +124,27 @@ autoriza.
 
 ### Condiciones previas
 
-- La versión actual pasó `prueba-migracion.sql` completa y T4 quedó verificado
-  con la CLI en el proyecto de pruebas.
-- El proyecto real sigue vacío (`pg_tables` sin filas en `public` y
-  `cane_private`) y no se aplicó nada a mano ni por la integración de GitHub.
-  No lo deduzcas solo del historial: mira el panel.
+- ✔ La versión actual pasó `prueba-migracion.sql` completa y se aplicó con la
+  CLI en el proyecto de pruebas (2026-10-11).
+- **Volver a comprobar justo antes del `push`:** el proyecto real sigue vacío
+  (`pg_tables` sin filas en `public` y `cane_private`) y no se aplicó nada a
+  mano ni por la integración de GitHub. No lo deduzcas solo del historial:
+  mira el panel.
+- **El archivo del repo es el que se probó:** si cambias una sola línea de SQL
+  ejecutable, hay que repetir la prueba. Los comentarios no cuentan.
+- **Commit antes del `push`**, para que el repositorio refleje exactamente lo
+  que se aplica.
 - *Automatic branching* y *Deploy to production* de la integración con GitHub
   están desactivados; si estuvieran activos, revisa qué se desplegó antes.
 - `supabase/migrations/` contiene solo `.gitkeep` y
   `20261009212148_supabase_cane.sql` (ninguna migración vacía de más).
-- El encabezado de la migración refleja que ya fue probada. Cámbialo **antes**
-  del `push`, no después.
+- ✔ El encabezado de la migración ya refleja que fue probada y que no está
+  aplicada al real. Tras el `push` no edites la migración: si algo cambia,
+  va en una migración nueva.
 - La migración no es idempotente: aplicarla dos veces falla o duplica.
+- No hay migración "de vuelta": revertir exigiría una migración nueva. El
+  proyecto real está vacío, pero cualquier limpieza la decidimos juntos; no
+  se improvisa con `DROP`.
 
 ### Pasos
 

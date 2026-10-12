@@ -153,5 +153,7 @@ activa" y no la violación de unicidad: el API debe manejar ambos casos (L241).
 3. Nombre de la migración (ver [`supabase.md`](supabase.md)).
 4. Autorización explícita para `db push`.
 
-Estado de esta migración: **pendiente de revisión y aplicación**. Que el SQL
-esté en el repo o en `private-data/` no lo convierte en regla definitiva.
+Estado de esta migración: **probada en un proyecto de pruebas (14/14) y
+pendiente de aplicación al proyecto real**; el punto 4 de arriba sigue siendo
+tuyo. Que el SQL esté en el repo no lo convierte en regla definitiva: las
+reglas de simulacro de 2026, por ejemplo, siguen sin confirmar.

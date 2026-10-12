@@ -1,8 +1,9 @@
 -- CANE MVP, propuesta v1 con las decisiones del 2026-10-09. PostgreSQL/Supabase
 -- nuevo. Ejecutar una vez (no es idempotente).
--- ESTADO: NO aplicada al proyecto real. Una versión anterior (con BEGIN/COMMIT y
--- ranking por tiempo total) pasó 14/14 pruebas en el proyecto de pruebas; esta
--- versión debe volver a probarse (docs/supabase.md).
+-- ESTADO: probada, NO aplicada al proyecto real. Esta versión se aplicó con la
+-- CLI (db push) en el proyecto de pruebas y pasó 14/14 comprobaciones de
+-- docs/prueba-migracion.sql (resultado informado por el usuario, 2026-10-11).
+-- El SQL ejecutable no cambió después de esa prueba; solo este encabezado.
 -- NO contiene cuentas reales ni secretos. Auth gestiona identidades y contraseñas.
 -- El frontend solo usa Auth; FastAPI se conecta directo a PostgreSQL con el rol
 -- postgres (MVP), con DATABASE_URL solo en el servidor. Ver docs/supabase.md.

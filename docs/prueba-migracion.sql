@@ -9,10 +9,11 @@
 -- Los datos son ficticios (preguntas y claves inventadas para la prueba).
 --
 -- Historial: la versión anterior (ranking por tiempo total) pasó 14/14 el
--- 2026-10-09 en el proyecto de pruebas. Esta versión (ranking por tiempo
--- PROMEDIO, migración sin BEGIN/COMMIT) aún no se ha ejecutado. El proyecto de
--- pruebas conserva el esquema anterior: límpialo con
--- docs/limpiar-proyecto-pruebas.sql y vuelve a aplicar la migración.
+-- 2026-10-09. Esta versión (ranking por tiempo PROMEDIO, migración sin
+-- BEGIN/COMMIT, aplicada con la CLI) pasó 14/14 el 2026-10-11 en el proyecto
+-- de pruebas (resultado informado por el usuario). Si cambia el SQL de la
+-- migración, límpialo con docs/limpiar-proyecto-pruebas.sql, vuelve a aplicarla
+-- y repite esta prueba.
 
 DO $test$
 DECLARE

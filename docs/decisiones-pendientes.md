@@ -24,13 +24,13 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md) y
 
 ### Migración y base de datos
 
-- **Volver a probar la migración**: la versión anterior pasó 14/14 en el
-  proyecto de pruebas; la actual (ranking por promedio, sin `BEGIN`/`COMMIT`)
-  aún no se ha ejecutado. Pasos en [`supabase.md`](supabase.md).
-- **T4 sin verificar**: que la CLI aplique la migración sin `BEGIN`/`COMMIT`
-  de forma atómica se confirma al aplicarla con la CLI en pruebas.
-- **Aplicar al proyecto real**: requiere autorización explícita tras una
-  prueba aprobada. Guía en [`supabase.md`](supabase.md); no ejecutada.
+- **Migración probada, no aplicada al real**: la versión actual pasó 14/14 en
+  el proyecto de pruebas aplicada con la CLI (2026-10-11). Falta la
+  autorización explícita para el `db push` al proyecto real. Guía y
+  comprobaciones previas en [`supabase.md`](supabase.md).
+- **Sin cubrir en las pruebas**: modos `area` y `simulacro`, sesiones
+  abandonadas, concurrencia y acceso real por la Data API. Se cubren al
+  conectar el backend (parte 3).
 - **Registro abierto**: `supabase/config.toml` trae `enable_signup = true`
   (valor por defecto de la CLI). Decidir si se cambia antes de cualquier
   `config push` o de usar la pila local. Verificar también el panel.
