@@ -42,12 +42,18 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
 
 ### Backend
 
-- **Sin probar contra Supabase real**: la llamada a `/auth/v1/user`, el
-  pooler y la Data API solo se probaron con un Auth falso y PostgreSQL local
-  (PGlite). Falta probarlos contra el proyecto de pruebas con `DATABASE_URL` y
-  un usuario real.
-- **Concurrencia**: PGlite atiende una conexión a la vez, así que el
-  `FOR UPDATE` y el pool no se ejercitaron en paralelo.
+- **Probado contra `pruebas_cane`** (2026-10-12, resultado informado por el
+  usuario): Auth real, PostgreSQL real, recorrido completo, timeout con `next`,
+  `server_now`, intentos y ranking. Sigue sin probarse contra Supabase real:
+  - **aislamiento entre dos usuarios** (no se ejecutó: faltaba el segundo
+    usuario); verificado solo en local;
+  - **qué cadena de conexión se usó** (directa o *session pooler*): anotarla,
+    porque condiciona el despliegue en Render;
+  - el acceso a la **Data API** con la clave publicable (que `question_keys`
+    no devuelva filas).
+- **Concurrencia**: la prueba local usa PGlite (una conexión a la vez) y la
+  corrida real fue secuencial, así que el `FOR UPDATE` y el pool no se
+  ejercitaron en paralelo.
 - **Conexión en Render**: qué cadena de *Connect* usar (directa requiere IPv6;
   *session pooler* admite IPv4) y comprobarlo al desplegar. `psycopg-binary`
   en la plataforma de Render, sin comprobar.

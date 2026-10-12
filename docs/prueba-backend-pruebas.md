@@ -13,12 +13,29 @@ proyecto real de CANE ni se despliega.
 
 ## Estado de esta guía
 
-Los comandos de los pasos 6.1 a 6.5 (incluida la espera real de 95 s) se
-ejecutaron con éxito en PowerShell 5.1 contra **el mismo backend** con
-PostgreSQL local y un Auth falso, y el script de datos se ejecutó contra la
-migración real en local. **No se ha corrido contra `pruebas_cane`**: ese es el
-propósito de esta guía. Las diferencias previsibles están en "Problemas
-frecuentes".
+**Ejecutada contra `pruebas_cane` el 2026-10-12** (resultado informado por el
+usuario; Auth y PostgreSQL reales de Supabase):
+
+| Prueba | Resultado |
+| --- | --- |
+| 6.1 sin token / token falso | 401 / 401 |
+| 6.2 crear sesión; pregunta sin `correct_option`; recarga conserva el plazo | 201; `False`; `True` |
+| 6.2 posición no emitida / opción `E` / campo extra | 409 / 422 / 422 |
+| 6.2 reenviar devuelve el primero; sesión completada y `next` | `B`; `completed` / 409 |
+| 6.3 abandonar y `next` / sesión inexistente | `abandoned` y 409 / 404 |
+| 6.4 timeout con `next` | posición 2, plazo nuevo, `timed_out` True, 90000 ms |
+| 6.5 simulacro final; ranking | 4 preguntas; puesto 1, 20 vistas, 19 aciertos, 95 %, 4,14 s |
+| 6.5b `server_now`, intentos, ranking | `server_now` correcto, plazo de 89,9 s, solo la posición 1, sin ids |
+
+**Pendiente de esa corrida:** la prueba de aislamiento entre usuarios (6.6)
+**no se ejecutó**: faltaba un segundo usuario y el 401 obtenido no prueba nada.
+El aislamiento sí está verificado en local (backend con PostgreSQL local y dos
+usuarios: 404 en `GET`, `next`, `answer`, `attempts` y `abandon`), pero no
+contra Supabase real.
+
+Además, los pasos se validaron en PowerShell 5.1 contra el mismo backend con
+PostgreSQL local y un Auth falso. Las diferencias previsibles están en
+"Problemas frecuentes".
 
 ## Reglas de seguridad
 
@@ -119,23 +136,30 @@ Abre **otra** terminal PowerShell (no cierres la 1):
 $global:api = "http://localhost:8000"
 $supabaseUrl = Read-Host "SUPABASE_URL de pruebas_cane"
 $key = Read-Host "SUPABASE_PUBLISHABLE_KEY"
-$email = Read-Host "Correo del usuario de prueba"
-$pwd = Read-Host "Contraseña" -AsSecureString
 
-$body = @{ email = $email; password = [Net.NetworkCredential]::new('', $pwd).Password } | ConvertTo-Json
-$r = Invoke-RestMethod -Method Post -Uri "$supabaseUrl/auth/v1/token?grant_type=password" `
-       -Headers @{ apikey = $key } -ContentType 'application/json' -Body $body
-$global:token = $r.access_token
-$body = $null; $pwd = $null; $r = $null
+function Get-AccessToken {
+  $email = Read-Host "Correo del usuario de prueba"
+  $pwd = Read-Host "Contraseña" -AsSecureString
+  $body = @{ email = $email; password = [Net.NetworkCredential]::new('', $pwd).Password } | ConvertTo-Json
+  $r = Invoke-RestMethod -Method Post -Uri "$supabaseUrl/auth/v1/token?grant_type=password" `
+         -Headers @{ apikey = $key } -ContentType 'application/json' -Body $body
+  $r.access_token
+}
+
+$global:token = Get-AccessToken
 "Token obtenido: " + ($global:token.Length -gt 0)
 ```
 
 No imprimas `$global:token` ni lo pegues en ningún lado. Dura aproximadamente
-una hora; si vence, repite este paso.
+una hora; si vence, repite `$global:token = Get-AccessToken`.
 
 ## Paso 6: probar las rutas
 
-Define un ayudante (devuelve siempre el código de estado, aunque haya error):
+Define un ayudante (devuelve siempre el código de estado, aunque haya error).
+Decodifica los **bytes** de la respuesta como UTF-8: el backend envía
+`application/json` sin `charset` y PowerShell 5.1 usaría ISO-8859-1 con
+`.Content`, mostrando `OpciÃ³n` en vez de `Opción`. Es solo la visualización:
+el servidor envía UTF-8 correcto y un navegador lo decodifica bien.
 
 ```powershell
 function Call([string]$Method, [string]$Path, $Body = $null, [string]$Token = $global:token) {
@@ -144,7 +168,8 @@ function Call([string]$Method, [string]$Path, $Body = $null, [string]$Token = $g
   if ($null -ne $Body) { $p.ContentType = 'application/json'; $p.Body = ($Body | ConvertTo-Json -Depth 5) }
   try {
     $r = Invoke-WebRequest @p
-    [pscustomobject]@{ Status = [int]$r.StatusCode; Data = ($r.Content | ConvertFrom-Json); Raw = $r.Content }
+    $text = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+    [pscustomobject]@{ Status = [int]$r.StatusCode; Data = ($text | ConvertFrom-Json); Raw = $text }
   } catch {
     $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
     [pscustomobject]@{ Status = $code; Data = $null; Raw = "$($_.ErrorDetails.Message)" }
@@ -260,8 +285,10 @@ $null = Call POST "/sessions/$n/answer" @{ position=1; selected_option='A' }
 
 ### 6.6 (Opcional) Una segunda persona: sesión ajena = 404
 
-Crea otro usuario en Authentication, añade su perfil en el mismo equipo con
-SQL (el equipo admite cinco personas) y obtén su token como en el paso 5:
+Esta prueba **exige** un segundo usuario real; sin él, `$token2` no existe y
+la llamada responde 401 (no prueba nada). Crea otro usuario en Authentication
+(con *Auto Confirm User*), añade su perfil en el mismo equipo con SQL (el
+equipo admite cinco personas) y obtén su token con `Get-AccessToken` (paso 5):
 
 ```sql
 insert into public.profiles(id, team_id, display_name)
@@ -270,8 +297,18 @@ from auth.users u where u.email = 'CORREO_DE_LA_SEGUNDA_PERSONA';
 ```
 
 ```powershell
-(Call GET "/sessions/$sid" -Token $token2).Status   # 404: la sesión es de la primera persona
+$token2 = Get-AccessToken          # correo y contraseña de la SEGUNDA persona
+"Token 2 obtenido: " + ($token2.Length -gt 0)
+
+(Call GET  "/sessions/$sid"            -Token $token2).Status                                 # 404
+(Call POST "/sessions/$sid/next"       -Token $token2).Status                                 # 404
+(Call POST "/sessions/$sid/answer" @{ position=1; selected_option='A' } -Token $token2).Status # 404
+(Call GET  "/sessions/$sid/attempts"   -Token $token2).Status                                 # 404
+(Call POST "/sessions/$sid/abandon"    -Token $token2).Status                                 # 404
+(Call GET  /ranking -Token $token2).Data | Format-Table   # mismas filas; is_me = True en la suya
 ```
+
+Con un `$token2` válido todas deben dar 404 (si da 401, el token no se obtuvo).
 
 ## Paso 7: verificar en la base (SQL Editor, solo lectura)
 
@@ -317,6 +354,8 @@ Solo esta tabla, sin tokens ni claves:
 | 503 `Autenticación no configurada` | Faltan `SUPABASE_URL` o `SUPABASE_PUBLISHABLE_KEY` en la Terminal 1. |
 | 503 `No se pudo verificar la sesión` | Supabase Auth no respondió; reintenta. |
 | 409 al crear sesión | No hay suficientes preguntas activas (¿ejecutaste el paso 2?). |
+| Los acentos salen como `OpciÃ³n` | Solo es PowerShell 5.1 decodificando mal el cuerpo; usa el ayudante `Call` de arriba (decodifica UTF-8) o PowerShell 7. El servidor envía UTF-8 correcto. |
+| 401 en la prueba del segundo usuario | `$token2` no existe o venció: ejecuta `$token2 = Get-AccessToken`. |
 | El paso 5 falla con "Email not confirmed" | El usuario se creó sin *Auto Confirm User*. |
 
 ## Limpieza

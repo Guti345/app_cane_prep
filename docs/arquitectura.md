@@ -116,7 +116,9 @@ Límites de las pruebas de integración: PGlite es PostgreSQL real, pero **no es
 Supabase** (versión 18.3; los roles `anon`, `authenticated`, `service_role` y
 `auth.users` son simulados) y atiende una conexión a la vez, así que no cubren
 concurrencia ni el pooler. Tampoco prueban la llamada real a Supabase Auth ni
-la Data API.
+la Data API. Esa parte se cubrió ejecutando la guía
+[`prueba-backend-pruebas.md`](prueba-backend-pruebas.md) contra el proyecto de
+pruebas (2026-10-12).
 
 ## Qué existe hoy
 

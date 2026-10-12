@@ -1,7 +1,7 @@
-﻿"""Repositorio en memoria SOLO para pruebas de la API.
+"""Repositorio en memoria SOLO para pruebas de la API.
 
 Imita el contrato de `GameRepository` (plazo de 90 s, idempotencia, orden de
-emisiÃ³n) para probar las rutas. No es la fuente de verdad de las reglas: esas
+emisión) para probar las rutas. No es la fuente de verdad de las reglas: esas
 las impone PostgreSQL y se validan con `docs/prueba-migracion.sql`.
 """
 
@@ -65,9 +65,9 @@ def build_pool(per_area: int = 20) -> list[FakeQuestion]:
                     area=area,
                     statement_md=f"Enunciado ficticio {area} {i + 1}",
                     options=(
-                        Option(label="A", text_md="opciÃ³n a"),
-                        Option(label="B", text_md="opciÃ³n b"),
-                        Option(label="C", text_md="opciÃ³n c"),
+                        Option(label="A", text_md="opción a"),
+                        Option(label="B", text_md="opción b"),
+                        Option(label="C", text_md="opción c"),
                     ),
                     correct_option="A" if i % 2 == 0 else "B",
                 )
@@ -195,7 +195,7 @@ class InMemoryGameRepository:
         self, session_id: UUID, position: int, selected_option: OptionLabel | None
     ) -> Attempt:
         s = self._get(session_id)
-        if position in s.attempts:  # idempotente, incluso con la sesiÃ³n cerrada
+        if position in s.attempts:  # idempotente, incluso con la sesión cerrada
             return s.attempts[position]
         if s.status != "active":
             raise SessionClosed()

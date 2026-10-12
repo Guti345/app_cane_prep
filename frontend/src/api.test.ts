@@ -45,6 +45,29 @@ describe("contrato con respuestas reales del backend", () => {
     expect(JSON.stringify(questionFixture)).not.toContain("correct_option");
   });
 
+  it("los fixtures conservan los acentos (sin doble codificación)", () => {
+    const all = JSON.stringify([
+      sessionFixture, questionFixture, attemptFixture, attemptsFixture, rankingFixture,
+    ]);
+
+    expect(all).not.toMatch(/[ÃÂ]/);
+    expect(questionFixture.options[0]!.text_md).toBe("Opción A");
+  });
+
+  it("decodifica UTF-8 aunque la respuesta no declare charset", async () => {
+    // Igual que el backend: application/json sin charset, cuerpo en UTF-8.
+    const bytes = new TextEncoder().encode(JSON.stringify(questionFixture));
+    const api = clientWith(
+      (async () =>
+        new Response(bytes, { headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch,
+    );
+
+    const question = await api.nextQuestion("x");
+
+    expect(question.options[0]!.text_md).toBe("Opción A");
+    expect(question.statement_md).toContain("¿Cuál");
+  });
+
   it("el plazo de la pregunta es server_now + 90 s", () => {
     const remaining = Date.parse(questionFixture.deadline_at) - Date.parse(questionFixture.server_now);
 

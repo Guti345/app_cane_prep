@@ -206,6 +206,16 @@ def test_session_state_exposes_current_deadline_without_answer(api, clock):
     assert not find_keys(state, "correct_option")
 
 
+def test_responses_are_utf8_encoded(api):
+    # Los enunciados del banco llevan acentos y eñes: deben viajar en UTF-8.
+    sid = new_session(api)["id"]
+
+    response = api.post(f"/sessions/{sid}/next")
+
+    assert "opción a".encode("utf-8") in response.content
+    assert response.json()["options"][0]["text_md"] == "opción a"
+
+
 def test_next_does_not_advance_until_current_is_answered(api):
     sid = new_session(api)["id"]
     api.post(f"/sessions/{sid}/next")
