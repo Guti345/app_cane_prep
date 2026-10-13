@@ -132,6 +132,12 @@ function createMarkdown(): MarkdownItInstance {
   md.renderer.rules["math_inline"] = (tokens, idx) => renderMath(tokens[idx]!.content, false, escape);
   md.renderer.rules["math_display"] = (tokens, idx) => renderMath(tokens[idx]!.content, true, escape);
 
+  // Cada tabla va en un contenedor con desplazamiento horizontal (celulares): el contenedor
+  // lo genera el renderizador; el texto no puede crearlo (el HTML sigue escapado).
+  md.renderer.rules["table_open"] = () =>
+    '<div class="rich-table" role="region" tabindex="0" aria-label="Tabla (se desliza hacia los lados)"><table>';
+  md.renderer.rules["table_close"] = () => "</table></div>";
+
   // Una imagen solo existe si su ruta está en los recursos de la pregunta; sale
   // sin `src` (la carga `hydrateFigures`). Cualquier otra se descarta.
   md.renderer.rules.image = (tokens, idx, _options, env) => {
@@ -161,6 +167,8 @@ const MATH_TAGS = [
 ];
 const ATTRIBUTES = [
   "class", "style", "aria-hidden", "title", "alt", "data-figure", "colspan", "rowspan", "align",
+  // contenedor deslizable de las tablas
+  "role", "tabindex", "aria-label",
   // KaTeX: MathML y SVG
   "xmlns", "encoding", "mathvariant", "stretchy", "fence", "separator", "lspace", "rspace",
   "minsize", "maxsize", "displaystyle", "scriptlevel", "columnalign", "columnspacing",

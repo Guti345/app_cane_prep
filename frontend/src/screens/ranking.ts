@@ -3,7 +3,7 @@ import type { Deps } from "../deps";
 import { describeFailure } from "../play";
 import { h } from "../dom";
 import { MIN_QUESTIONS_FOR_RANKING, type RankingRow } from "../types";
-import { card, errorNotice, formatSeconds, navBar } from "./layout";
+import { card, errorNotice, formatSeconds, navBar, scrollRegion } from "./layout";
 
 export function positionLabel(row: RankingRow): string {
   if (row.rank_position !== null) return String(row.rank_position);
@@ -15,9 +15,9 @@ export function renderRankingTable(rows: RankingRow[]): HTMLElement {
   if (rows.length === 0) {
     return h("p", { class: "muted" }, "Todavía no hay datos en el ranking.");
   }
-  return h(
+  const table = h(
     "table",
-    { class: "table" },
+    { class: "table ranking" },
     h("caption", { class: "sr-only" }, "Ranking del equipo"),
     h(
       "thead",
@@ -49,6 +49,12 @@ export function renderRankingTable(rows: RankingRow[]): HTMLElement {
         ),
       ),
     ),
+  );
+  return h(
+    "div",
+    null,
+    h("p", { class: "scroll-hint muted small" }, "Desliza la tabla hacia los lados para ver todas las columnas."),
+    scrollRegion("Ranking del equipo (se desliza hacia los lados)", table),
   );
 }
 

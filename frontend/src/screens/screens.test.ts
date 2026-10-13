@@ -9,7 +9,7 @@ import { renderLogin } from "./login";
 import { renderQuestion } from "./question";
 import { positionLabel, renderRankingTable } from "./ranking";
 import { renderResult } from "./result";
-import { summarize } from "./summary";
+import { renderSummary, summarize } from "./summary";
 
 function deps(signIn: (e: string, p: string) => Promise<SignInResult>): Deps & { went: unknown[] } {
   const went: unknown[] = [];
@@ -300,7 +300,7 @@ describe("pantalla de resultado", () => {
   function attempt(overrides: Partial<Attempt> = {}): Attempt {
     return {
       position: 1, selected_option: "B", is_correct: false, timed_out: false,
-      time_used_ms: 12_340, correct_option: "A", ...overrides,
+      time_used_ms: 12_340, correct_option: "A", area: "microeconomia", source_number: 57, ...overrides,
     };
   }
 
@@ -314,7 +314,7 @@ describe("pantalla de resultado", () => {
   it("muestra la respuesta elegida, la correcta y el tiempo", () => {
     const { container } = render(attempt());
 
-    expect(container.querySelector(".banner")?.textContent).toBe("Incorrecto");
+    expect(container.querySelector(".banner")?.textContent).toContain("Incorrecto");
     expect(container.textContent).toContain("B. Dos");
     expect(container.textContent).toContain("A. Uno");
     expect(container.textContent).toContain("12,3 s");
@@ -322,10 +322,88 @@ describe("pantalla de resultado", () => {
 
   it("distingue acierto y vencimiento", () => {
     expect(render(attempt({ selected_option: "A", is_correct: true })).container.querySelector(".banner")?.textContent)
-      .toBe("¡Correcto!");
+      .toContain("¡Correcto!");
     const timeout = render(attempt({ selected_option: null, timed_out: true, time_used_ms: 90_000 })).container;
-    expect(timeout.querySelector(".banner")?.textContent).toBe("Se acabó el tiempo");
+    expect(timeout.querySelector(".banner")?.textContent).toContain("Se acabó el tiempo");
     expect(timeout.textContent).toContain("sin respuesta");
+  });
+
+  it("muestra la referencia del PDF (área + número), no la posición ni ningún id", () => {
+    const { container } = render(attempt({ area: "historia_pensamiento", source_number: 112 }));
+    const reference = container.querySelector(".source-ref")?.textContent ?? "";
+
+    expect(reference).toContain("Historia y Pensamiento Económico 112");
+    expect(reference).not.toMatch(/Pregunta 1|[0-9a-f]{8}-[0-9a-f]{4}/);
+  });
+
+  it("repite el enunciado y las opciones, marcando en texto la elegida y la correcta", () => {
+    const { container } = render(attempt({ selected_option: "B" }));
+
+    expect(container.querySelector(".review .statement")?.textContent).toBe("¿Qué es el PIB?");
+    const items = [...container.querySelectorAll(".review-option")];
+    expect(items.map((li) => li.getAttribute("data-label"))).toEqual(["A", "B", "C"]);
+    const byLabel = (l: string) => container.querySelector(`.review-option[data-label="${l}"]`)!;
+    expect(byLabel("B").classList.contains("chosen")).toBe(true);
+    expect(byLabel("B").textContent).toContain("✗ Tu respuesta");
+    expect(byLabel("A").classList.contains("correct")).toBe(true);
+    expect(byLabel("A").textContent).toContain("✓ Correcta");
+    expect(byLabel("C").querySelector(".tags")).toBeNull();
+  });
+
+  it("si acertó, la opción lleva las dos marcas; si venció, solo la correcta", () => {
+    const hit = render(attempt({ selected_option: "A", is_correct: true })).container;
+    const hitText = hit.querySelector('.review-option[data-label="A"]')!.textContent;
+    expect(hitText).toContain("✓ Tu respuesta");
+    expect(hitText).toContain("✓ Correcta");
+
+    const timeout = render(attempt({ selected_option: null, timed_out: true, time_used_ms: 90_000 })).container;
+    expect(timeout.querySelector(".review-option.chosen")).toBeNull();
+    expect(timeout.querySelector(".review-option.correct")).not.toBeNull();
+    expect(timeout.querySelector(".source-ref")?.textContent).toContain("Microeconomía 57");
+  });
+
+  it("la revisión dibuja la figura de la pregunta con el cargador autenticado", async () => {
+    const ref = "assets/cane-2026-econometria-006-fig-01.png";
+    const loadFigure = vi.fn().mockResolvedValue("blob:http://localhost/figura");
+    const container = document.createElement("div");
+    renderResult(container, {
+      question: question({
+        statement_md: `Observe:\n\n![serie](${ref})\n\n![ajena](https://evil.test/p.png)`,
+        assets: [{ ref, kind: "figure", alt: "Serie", source_page: 3, status: "available" }],
+      }),
+      attempt: attempt(), isLast: false, onNext: vi.fn(), loadFigure,
+    });
+
+    const images = container.querySelectorAll(".review img");
+    expect(images).toHaveLength(1);
+    await vi.waitFor(() => expect(images[0]!.getAttribute("src")).toBe("blob:http://localhost/figura"));
+    expect(loadFigure).toHaveBeenCalledWith(ref);
+    expect(container.innerHTML).not.toContain("evil.test");
+  });
+
+  it("la revisión pasa por el mismo sanitizado: el HTML del enunciado es texto", () => {
+    const container = document.createElement("div");
+    renderResult(container, {
+      question: question({
+        statement_md: '<img src=x onerror="alert(1)"><script>alert(2)</script> y una tabla:\n\n| a | b |\n|---|---|\n| 1 | 2 |',
+        options: [
+          { label: "A", text_md: "<b>negrita</b>" }, { label: "B", text_md: "$x^2$" }, { label: "C", text_md: "tres" },
+        ],
+      }),
+      attempt: attempt(), isLast: false, onNext: vi.fn(),
+    });
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector(".review-option b")).toBeNull();
+    expect(container.querySelector(".review .rich-table table td")?.textContent).toBe("1");
+    expect(container.querySelector('.review-option[data-label="B"] .katex')).not.toBeNull();
+  });
+
+  it("las etiquetas de los datos van apiladas (clase 'stacked')", () => {
+    const { container } = render(attempt());
+
+    expect(container.querySelector("dl.facts.stacked")).not.toBeNull();
   });
 
   it("el botón cambia en la última pregunta y avanza al pulsarlo", () => {
@@ -343,7 +421,10 @@ describe("pantalla de resultado", () => {
 
 describe("resumen", () => {
   it("cuenta correctas, incorrectas y vencidas", () => {
-    const base = { position: 1, selected_option: "A" as const, correct_option: "A" as const };
+    const base = {
+      position: 1, selected_option: "A" as const, correct_option: "A" as const,
+      area: "macroeconomia" as const, source_number: 12,
+    };
     const stats = summarize([
       { ...base, is_correct: true, timed_out: false, time_used_ms: 2000 },
       { ...base, selected_option: "B", is_correct: false, timed_out: false, time_used_ms: 4000 },
@@ -355,6 +436,27 @@ describe("resumen", () => {
 
   it("sin intentos no inventa un promedio", () => {
     expect(summarize([]).averageMs).toBeNull();
+  });
+
+  it("la tabla trae la referencia del PDF de cada pregunta y se puede deslizar", () => {
+    const container = document.createElement("div");
+    const attempt = (position: number, area: Attempt["area"], source_number: number): Attempt => ({
+      position, selected_option: "A", is_correct: true, timed_out: false,
+      time_used_ms: 3000, correct_option: "A", area, source_number,
+    });
+    renderSummary(container, deps(vi.fn()), { ...SESSION, status: "completed" }, [
+      attempt(1, "microeconomia", 57),
+      attempt(2, "historia_pensamiento", 3),
+    ]);
+
+    const rows = [...container.querySelectorAll("table.summary tbody tr")];
+    expect(rows.map((r) => r.children[1]!.textContent)).toEqual([
+      "Microeconomía 57", "Historia y Pensamiento Económico 3",
+    ]);
+    expect(rows.map((r) => r.children[0]!.textContent)).toEqual(["1", "2"]); // posición, aparte
+    const region = container.querySelector('.table-scroll[role="region"]');
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.querySelector("table.summary")).not.toBeNull();
   });
 });
 
@@ -379,6 +481,21 @@ describe("ranking", () => {
     expect(table.querySelector("tr.me")?.textContent).toContain("Yo (tú)");
     expect(table.querySelector("b")).toBeNull();
     expect(table.textContent).toContain("<b>Ana</b>");
+  });
+
+  it("la tabla va en una región deslizable y conserva mi fila y el aviso de preguntas faltantes", () => {
+    const table = renderRankingTable([
+      row({ display_name: "Ana", rank_position: 1 }),
+      row({ display_name: "Yo", rank_position: null, questions_seen: 7, is_me: true, accuracy_pct: 42.9 }),
+    ]);
+
+    const region = table.querySelector('.table-scroll[role="region"]');
+    expect(region).not.toBeNull();
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.querySelector("table.ranking")).not.toBeNull();
+    expect(table.querySelector("tr.me")?.textContent).toContain("Faltan 13 preguntas");
+    expect(table.querySelectorAll("thead th")).toHaveLength(6); // ninguna columna se pierde
+    expect(table.querySelector(".scroll-hint")).not.toBeNull();
   });
 
   it("sin filas muestra un aviso", () => {

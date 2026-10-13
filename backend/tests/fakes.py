@@ -54,6 +54,8 @@ class FakeQuestion:
     options: tuple[Option, ...]
     correct_option: OptionLabel
     assets: tuple[dict, ...] = ()
+    # Número en el banco fuente (reinicia por área), como `questions.source_number`.
+    source_number: int = 0
     # Bytes de las figuras por `ref`; en la base viven en question_assets.
     asset_data: dict[str, bytes] = field(default_factory=dict)
 
@@ -74,9 +76,17 @@ def build_pool(per_area: int = 20) -> list[FakeQuestion]:
                         Option(label="C", text_md="opción c"),
                     ),
                     correct_option="A" if i % 2 == 0 else "B",
+                    source_number=i + 1,
                 )
             )
     return pool
+
+
+def _timeout_attempt(position: int, q: FakeQuestion) -> Attempt:
+    return Attempt(
+        position, None, False, True, 90000, q.correct_option,
+        area=q.area, source_number=q.source_number,
+    )
 
 
 @dataclass
@@ -174,7 +184,7 @@ class InMemoryGameRepository:
         for position, (_, deadline) in sorted(s.issued.items()):
             if position not in s.attempts and self._clock.now >= deadline:
                 q = s.manifest[position - 1]
-                s.attempts[position] = Attempt(position, None, False, True, 90000, q.correct_option)
+                s.attempts[position] = _timeout_attempt(position, q)
         pending = next(
             (p for p in range(1, s.question_count + 1) if p not in s.attempts), None
         )
@@ -209,7 +219,7 @@ class InMemoryGameRepository:
         q = s.manifest[position - 1]
         now = self._clock.now
         if now >= deadline:
-            attempt = Attempt(position, None, False, True, 90000, q.correct_option)
+            attempt = _timeout_attempt(position, q)
         else:
             if selected_option not in {o.label for o in q.options}:
                 raise InvalidOption()
@@ -221,6 +231,8 @@ class InMemoryGameRepository:
                 False,
                 used_ms,
                 q.correct_option,
+                area=q.area,
+                source_number=q.source_number,
             )
         s.attempts[position] = attempt
         if len(s.attempts) == s.question_count:

@@ -2,7 +2,7 @@ import type { Deps } from "../deps";
 import { h } from "../dom";
 import { hrefFor } from "../router";
 import type { Attempt, Session } from "../types";
-import { card, formatSeconds, navBar } from "./layout";
+import { card, formatSeconds, navBar, scrollRegion, sourceReference } from "./layout";
 
 export interface SummaryStats {
   total: number;
@@ -58,35 +58,41 @@ export function renderSummary(
       ),
       attempts.length
         ? card(
-            h(
-              "table",
-              { class: "table" },
-              h("caption", { class: "sr-only" }, "Resultado por pregunta"),
+            h("p", { class: "scroll-hint muted small" }, "Desliza la tabla hacia los lados para ver todas las columnas."),
+            scrollRegion(
+              "Resultado por pregunta (se desliza hacia los lados)",
               h(
-                "thead",
-                null,
+                "table",
+                { class: "table summary" },
+                h("caption", { class: "sr-only" }, "Resultado por pregunta"),
                 h(
-                  "tr",
+                  "thead",
                   null,
-                  h("th", { scope: "col" }, "#"),
-                  h("th", { scope: "col" }, "Tu respuesta"),
-                  h("th", { scope: "col" }, "Correcta"),
-                  h("th", { scope: "col" }, "Resultado"),
-                  h("th", { scope: "col" }, "Tiempo"),
-                ),
-              ),
-              h(
-                "tbody",
-                null,
-                ...attempts.map((a) =>
                   h(
                     "tr",
                     null,
-                    h("td", null, a.position),
-                    h("td", null, a.selected_option ?? "—"),
-                    h("td", null, a.correct_option),
-                    h("td", null, a.timed_out ? "Sin tiempo" : a.is_correct ? "Correcta" : "Incorrecta"),
-                    h("td", null, formatSeconds(a.time_used_ms)),
+                    h("th", { scope: "col" }, "#"),
+                    h("th", { scope: "col" }, "Pregunta en el PDF"),
+                    h("th", { scope: "col" }, "Tu respuesta"),
+                    h("th", { scope: "col" }, "Correcta"),
+                    h("th", { scope: "col" }, "Resultado"),
+                    h("th", { scope: "col" }, "Tiempo"),
+                  ),
+                ),
+                h(
+                  "tbody",
+                  null,
+                  ...attempts.map((a) =>
+                    h(
+                      "tr",
+                      null,
+                      h("td", null, a.position),
+                      h("td", null, sourceReference(a)),
+                      h("td", null, a.selected_option ?? "—"),
+                      h("td", null, a.correct_option),
+                      h("td", null, a.timed_out ? "✗ Sin tiempo" : a.is_correct ? "✓ Correcta" : "✗ Incorrecta"),
+                      h("td", null, formatSeconds(a.time_used_ms)),
+                    ),
                   ),
                 ),
               ),

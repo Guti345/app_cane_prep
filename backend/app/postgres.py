@@ -85,22 +85,24 @@ _STATE_SQL = f"""
 
 _ATTEMPT_SQL = """
     SELECT a.position, a.selected_option, a.is_correct, a.timed_out,
-           a.time_used_ms, k.correct_option
+           a.time_used_ms, k.correct_option, q.area, q.source_number
     FROM public.attempts a
     JOIN public.session_questions sq
       ON sq.session_id = a.session_id AND sq.position = a.position
     JOIN public.question_keys k ON k.question_id = sq.question_id
+    JOIN public.questions q ON q.id = sq.question_id
     WHERE a.session_id = %s AND a.position = %s
 """
 
 # Solo posiciones con intento: la clave de una pregunta abierta no se toca.
 _ATTEMPTS_OF_SESSION_SQL = """
     SELECT a.position, a.selected_option, a.is_correct, a.timed_out,
-           a.time_used_ms, k.correct_option
+           a.time_used_ms, k.correct_option, q.area, q.source_number
     FROM public.attempts a
     JOIN public.session_questions sq
       ON sq.session_id = a.session_id AND sq.position = a.position
     JOIN public.question_keys k ON k.question_id = sq.question_id
+    JOIN public.questions q ON q.id = sq.question_id
     WHERE a.session_id = %s
     ORDER BY a.position
 """
@@ -446,6 +448,8 @@ class PostgresGameRepository:
             timed_out=row["timed_out"],
             time_used_ms=row["time_used_ms"],
             correct_option=row["correct_option"],
+            area=row["area"],
+            source_number=row["source_number"],
         )
 
     @staticmethod

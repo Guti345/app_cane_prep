@@ -1,6 +1,8 @@
 import type { Deps } from "../deps";
 import { h } from "../dom";
 import { PlayController, type PlayState } from "../play";
+import type { FigureLoader } from "../richtext";
+import type { Question, Session } from "../types";
 import { hrefFor } from "../router";
 import { renderQuestion } from "./question";
 import { renderResult } from "./result";
@@ -31,6 +33,17 @@ export function renderPlayScreen(
     now,
   );
 
+  /** Pide la figura a la API con la sesión del usuario y devuelve una URL local (blob:). */
+  function figureLoaderFor(session: Session, question: Question): FigureLoader {
+    return async (ref) => {
+      const blob = await deps.api.figure(session.id, question.position, ref.replace(/^assets\//, ""));
+      if (disposed) throw new Error("pantalla cerrada");
+      const url = URL.createObjectURL(blob);
+      figureUrls.push(url);
+      return url;
+    };
+  }
+
   function show(state: PlayState): void {
     if (state.kind !== "submitting") releaseFigures();
     switch (state.kind) {
@@ -49,17 +62,7 @@ export function renderPlayScreen(
           question: state.question,
           offsetMs: state.offsetMs,
           now,
-          loadFigure: async (ref) => {
-            const blob = await deps.api.figure(
-              state.session.id,
-              state.question.position,
-              ref.replace(/^assets\//, ""),
-            );
-            if (disposed) throw new Error("pantalla cerrada");
-            const url = URL.createObjectURL(blob);
-            figureUrls.push(url);
-            return url;
-          },
+          loadFigure: figureLoaderFor(state.session, state.question),
           onAnswer: (option) => void controller.submit(option),
           onAbandon: () => void controller.abandon(),
         });
@@ -76,6 +79,7 @@ export function renderPlayScreen(
           attempt: state.attempt,
           isLast: state.isLast,
           onNext: () => void controller.continue(),
+          loadFigure: figureLoaderFor(state.session, state.question),
         });
         break;
 

@@ -145,7 +145,8 @@ interface Question { position: number; area: Area; statement_md: string;
 
 interface Attempt { position: number; selected_option: OptionLabel | null;
   is_correct: boolean; timed_out: boolean; time_used_ms: number;
-  correct_option: OptionLabel; }
+  correct_option: OptionLabel;
+  area: Area; source_number: number; }   // referencia en el PDF; solo tras resolver
 ```
 
 Manejo de errores del cliente de API:
@@ -217,6 +218,26 @@ Abiertas:
    escritorio real; falta probarlo con lector de pantalla y en un teléfono.
 4. Si "Continuar" debe funcionar entre dispositivos, habría que añadir
    `GET /sessions?status=active`.
+
+## Revisión, referencias y colores (2026-10-13)
+
+- **Resultado.** Etiquetas apiladas en celular (`dl.facts.stacked`); debajo, la revisión de la
+  pregunta: referencia del PDF, enunciado con figuras y tablas (mismo renderizado seguro) y las
+  opciones con la elegida y la correcta marcadas **con texto y símbolo**, no solo con color.
+  Todo sale de lo que el navegador ya tenía de esa pregunta; no hay datos nuevos antes de
+  resolverla. La figura se vuelve a pedir al mismo endpoint autenticado.
+- **Referencia.** `area` + `source_number` (p. ej. «Microeconomía 57»), que vienen de
+  `questions.area` y `questions.source_number` y se exponen **solo** en el intento (`/answer`,
+  `/attempts`), no en `/next`. No es la posición de la sesión ni el id interno. El número
+  reinicia por área, así que la referencia es siempre área + número.
+- **Tablas deslizables.** El ranking y el resumen van en `.table-scroll` (región con nombre,
+  enfocable) con ancho mínimo, una pista visible en pantallas angostas y sombras en los bordes
+  cuando hay más contenido. Las tablas de las preguntas las envuelve el renderizador en
+  `.rich-table`; el texto no puede crear ese contenedor (el HTML sigue escapado).
+- **Colores.** Paleta del CANE definida una sola vez en `:root` de `styles.css` (`--cane-*`);
+  el resto usa roles (`--primary`, `--danger`, `--warm`…). Solo tema claro. Mostaza y naranja
+  no sirven de texto sobre blanco (1,7 y 3,4:1): van de fondo con texto negro, de borde o de
+  detalle. Correcto = índigo con ✓, incorrecto = vino con ✗, sin tiempo = mostaza con ⏱.
 
 ## Texto enriquecido
 

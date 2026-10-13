@@ -96,6 +96,9 @@ class AttemptOut(BaseModel):
     timed_out: bool
     time_used_ms: int
     correct_option: OptionLabel
+    # Referencia para ubicar la pregunta en el PDF del banco: área + número.
+    area: Area
+    source_number: int
 
 
 class RankingRowOut(BaseModel):

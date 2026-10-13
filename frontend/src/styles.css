@@ -1,35 +1,48 @@
+/* ==========================================================================
+   Paleta del CANE: los HEX son los oficiales y NO se cambian. Todo lo demás
+   del archivo usa estas variables; para ajustar un color se cambia solo aquí.
+   ========================================================================== */
 :root {
-  color-scheme: light dark;
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --text: #1c2430;
-  --muted: #5b6676;
-  --border: #d9dee5;
-  --accent: #1f5fbf;
-  --accent-text: #ffffff;
-  --ok: #17703a;
-  --ok-bg: #e4f4ea;
-  --error: #b3261e;
-  --error-bg: #fbe9e7;
-  --warn: #8a5a00;
-  --warn-bg: #fff3d6;
+  color-scheme: light;
+
+  --cane-indigo: #34398a; /* texto CANE y edición */
+  --cane-fondo: #e6e9ef; /* gris azulado claro (fondo) */
+  --cane-negro: #111111; /* logos y subtítulos */
+  --cane-mostaza: #f4bd3a; /* izquierda de la N */
+  --cane-naranja: #de6b3d; /* centro de la N */
+  --cane-vino: #8b1b22; /* derecha de la N */
+  --cane-rosa: #e2c4d8; /* detalle inferior derecho */
+  --cane-blanco: #ffffff; /* superficie de tarjetas (no es parte del logo) */
+
+  /* Roles. Contrastes WCAG medidos (texto normal pide 4,5:1):
+     negro/fondo 15,5 · índigo/fondo 8,2 · blanco/índigo 10,0 · negro/mostaza 11,0 ·
+     negro/naranja 5,6 · blanco/vino 9,2 · vino/fondo 7,6 · negro/rosa 11,8.
+     Blanco sobre mostaza (1,7) y blanco sobre naranja (3,4) NO sirven para texto:
+     mostaza y naranja van solo de fondo con texto negro, de borde o de detalle. */
+  --bg: var(--cane-fondo);
+  --surface: var(--cane-blanco);
+  --text: var(--cane-negro);
+  --muted: color-mix(in srgb, var(--cane-negro) 72%, var(--cane-fondo));
+  --border: color-mix(in srgb, var(--cane-indigo) 30%, var(--cane-fondo));
+
+  --primary: var(--cane-indigo);
+  --on-primary: var(--cane-blanco);
+  --danger: var(--cane-vino);
+  --on-danger: var(--cane-blanco);
+  --warm: var(--cane-mostaza);
+  --on-warm: var(--cane-negro);
+  --detail: var(--cane-naranja);
+  --soft: var(--cane-rosa);
+  --on-soft: var(--cane-negro);
+
+  --shadow-edge: color-mix(in srgb, var(--cane-indigo) 35%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
+@supports not (color: color-mix(in srgb, red, blue)) {
   :root {
-    --bg: #14181f;
-    --surface: #1d232d;
-    --text: #e8ecf2;
-    --muted: #9aa5b5;
-    --border: #2f3744;
-    --accent: #5b9bff;
-    --accent-text: #0b1220;
-    --ok: #5ed38a;
-    --ok-bg: #12301e;
-    --error: #ff8a80;
-    --error-bg: #3a1a17;
-    --warn: #ffcb6b;
-    --warn-bg: #3a2e12;
+    --muted: var(--cane-negro);
+    --border: var(--cane-indigo);
+    --shadow-edge: var(--cane-indigo);
   }
 }
 
@@ -45,12 +58,22 @@ body {
   line-height: 1.5;
 }
 
+h1,
+h2 {
+  color: var(--primary);
+}
+
 h1 {
   margin: 0 0 0.5rem;
 }
 
+h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
 a {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .shell {
@@ -96,8 +119,9 @@ a {
   justify-content: space-between;
   gap: 0.5rem 1rem;
   padding: 0.75rem 1rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--primary);
+  color: var(--on-primary);
+  border-bottom: 4px solid var(--warm);
 }
 
 .topbar nav {
@@ -109,12 +133,22 @@ a {
 
 .topbar .brand {
   font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topbar a,
+.topbar button.link {
+  color: var(--on-primary);
 }
 
 .topbar a[aria-current="page"] {
   font-weight: 700;
   text-decoration: none;
-  color: var(--text);
+  border-bottom: 3px solid var(--warm);
+}
+
+.topbar :focus-visible {
+  outline-color: var(--warm);
 }
 
 /* --- tarjetas y formularios ------------------------------------------------- */
@@ -157,8 +191,8 @@ select {
   font: inherit;
   padding: 0.5rem 0.625rem;
   color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--primary);
   border-radius: 0.375rem;
 }
 
@@ -172,25 +206,26 @@ button,
   font: inherit;
   display: inline-block;
   padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--primary);
   border-radius: 0.375rem;
   background: var(--surface);
-  color: var(--text);
+  color: var(--primary);
   cursor: pointer;
   text-decoration: none;
 }
 
 button.primary,
 .button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  font-weight: 600;
 }
 
 button.link {
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--primary);
   padding: 0.25rem 0;
   text-decoration: underline;
 }
@@ -205,17 +240,18 @@ form button[type="submit"] {
 }
 
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* --- avisos y banners --------------------------------------------------------- */
+/* --- avisos y banners (el significado va también en el texto y el símbolo) -------- */
 .notice {
   margin: 0.75rem 0;
 }
 
 .notice.error {
-  color: var(--error);
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .banner {
@@ -227,18 +263,18 @@ form button[type="submit"] {
 }
 
 .banner.ok {
-  background: var(--ok-bg);
-  color: var(--ok);
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .banner.bad {
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--danger);
+  color: var(--on-danger);
 }
 
 .banner.timeout {
-  background: var(--warn-bg);
-  color: var(--warn);
+  background: var(--warm);
+  color: var(--on-warm);
 }
 
 /* --- pregunta y cronómetro ------------------------------------------------------ */
@@ -253,15 +289,16 @@ form button[type="submit"] {
   font-size: 1.75rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--primary);
 }
 
 .timer.urgent {
-  color: var(--error);
+  color: var(--danger);
 }
 
 .timer-bar {
   height: 0.5rem;
-  background: var(--border);
+  background: var(--soft);
   border-radius: 999px;
   overflow: hidden;
   margin: 0.25rem 0 1rem;
@@ -270,13 +307,41 @@ form button[type="submit"] {
 .timer-bar-fill {
   height: 100%;
   width: 100%;
-  background: var(--accent);
+  background: var(--primary);
+}
+
+.question-head:has(.timer.urgent) + .timer-bar .timer-bar-fill {
+  background: var(--danger);
 }
 
 .statement {
   margin: 0 0 1rem;
   font-size: 1.1rem;
   overflow-wrap: anywhere;
+}
+
+.options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.option {
+  text-align: left;
+  width: 100%;
+  overflow-wrap: anywhere;
+  padding: 0.75rem 1rem;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.option:hover:not(:disabled) {
+  background: var(--soft);
+  border-color: var(--primary);
+}
+
+.option-label {
+  font-weight: 700;
+  color: var(--primary);
 }
 
 /* --- texto enriquecido (Markdown, LaTeX, figuras) ---------------------------------------- */
@@ -294,13 +359,16 @@ form button[type="submit"] {
   padding-left: 1.5rem;
 }
 
-/* La tabla ocupa el ancho disponible y se desplaza sola si no cabe (celular). */
-.rich table {
-  display: block;
+/* Cada tabla va en .rich-table (la crea el renderizador): ocupa el ancho disponible y se
+   desliza sola si no cabe, con sombra en el borde que indica que hay más. */
+.rich-table {
   max-width: 100%;
   overflow-x: auto;
-  border-collapse: collapse;
   margin: 0.5rem 0 0.75rem;
+}
+
+.rich table {
+  border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
 
@@ -322,7 +390,8 @@ form button[type="submit"] {
   height: auto;
   margin: 0.75rem auto;
   padding: 0.5rem;
-  background: #ffffff; /* las figuras tienen fondo blanco; en tema oscuro siguen legibles */
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
 }
 
@@ -353,26 +422,21 @@ form button[type="submit"] {
 }
 
 .rich .katex-error {
-  color: var(--error);
+  color: var(--danger);
 }
 
-.options {
-  display: grid;
-  gap: 0.5rem;
+/* Sombras de borde: aparecen solo cuando hay contenido oculto hacia ese lado. */
+.table-scroll,
+.rich-table,
+.rich .katex-display {
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left center / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right center / 2rem 100% no-repeat local,
+    linear-gradient(to right, var(--shadow-edge), transparent) left center / 0.75rem 100% no-repeat scroll,
+    linear-gradient(to left, var(--shadow-edge), transparent) right center / 0.75rem 100% no-repeat scroll;
 }
 
-.option {
-  text-align: left;
-  width: 100%;
-  overflow-wrap: anywhere;
-  padding: 0.75rem 1rem;
-}
-
-.option-label {
-  font-weight: 700;
-}
-
-/* --- hechos y tablas --------------------------------------------------------------- */
+/* --- hechos, tablas y revisión --------------------------------------------------------------- */
 .facts {
   display: grid;
   grid-template-columns: max-content 1fr;
@@ -389,6 +453,28 @@ form button[type="submit"] {
   overflow-wrap: anywhere;
 }
 
+/* En celular cada etiqueta va encima de su valor, a ancho completo. */
+@media (max-width: 40rem) {
+  .facts.stacked {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .facts.stacked dt {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .facts.stacked dt:first-child {
+    margin-top: 0;
+  }
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -398,13 +484,107 @@ form button[type="submit"] {
 .table th,
 .table td {
   text-align: left;
-  padding: 0.375rem 0.5rem;
+  padding: 0.5rem 0.5rem;
   border-bottom: 1px solid var(--border);
 }
 
+/* Las dos últimas columnas (cifras, resultado, tiempo) no se parten en dos líneas. */
+.table td:nth-last-child(-n + 2) {
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--primary);
+  border-bottom: 2px solid var(--primary);
+}
+
 .table tr.me {
-  background: var(--ok-bg);
+  background: var(--soft);
+  color: var(--on-soft);
   font-weight: 600;
+}
+
+/* La tabla no se comprime por debajo de este ancho: en pantallas angostas se desliza
+   dentro de su contenedor; en las anchas cabe entera (las celdas pueden envolver). */
+.table.ranking {
+  min-width: 34rem;
+}
+
+.table.summary {
+  min-width: 34rem;
+}
+
+.scroll-hint {
+  display: none;
+  margin: 0 0 0.5rem;
+}
+
+@media (max-width: 45rem) {
+  .scroll-hint {
+    display: block;
+  }
+}
+
+.review h2 {
+  border-left: 4px solid var(--detail);
+  padding-left: 0.5rem;
+}
+
+.source-ref {
+  margin: 0 0 0.75rem;
+  padding: 0.375rem 0.625rem;
+  background: var(--soft);
+  color: var(--on-soft);
+  border-radius: 0.375rem;
+}
+
+.review-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.review-option {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--border);
+  border-radius: 0.375rem;
+  overflow-wrap: anywhere;
+}
+
+.review-option.correct {
+  border-left-color: var(--primary);
+}
+
+.review-option.chosen:not(.correct) {
+  border-left-color: var(--danger);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.tag.correct {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.tag.wrong {
+  background: var(--danger);
+  color: var(--on-danger);
 }
 
 @media (max-width: 30rem) {

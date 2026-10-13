@@ -353,6 +353,21 @@ def test_list_attempts_includes_timeouts_registered_by_next(repo, started, seed)
     assert (attempts[0].timed_out, attempts[0].selected_option) == (True, None)
 
 
+def test_attempts_carry_the_source_reference_of_the_question(repo, started, db):
+    question = repo.issue_next_question(started.id)
+    answered = repo.record_answer(started.id, 1, "A")
+    row = db.execute(
+        "SELECT q.area, q.source_number FROM public.session_questions sq "
+        "JOIN public.questions q ON q.id = sq.question_id "
+        "WHERE sq.session_id = %s AND sq.position = 1", (started.id,)
+    ).fetchone()
+
+    assert (answered.area, answered.source_number) == (row["area"], row["source_number"])
+    assert answered.area == question.area
+    listed = repo.list_attempts(started.id)
+    assert (listed[0].area, listed[0].source_number) == (row["area"], row["source_number"])
+
+
 # --- B2: ranking del equipo -----------------------------------------------------------------------
 
 

@@ -394,3 +394,44 @@ def test_other_users_session_looks_nonexistent(api, app, user_b):
 
 def test_unknown_session_is_404(api):
     assert api.get(f"/sessions/{uuid4()}").status_code == 404
+
+
+# --- referencia en el PDF (área + número) --------------------------------------------------
+
+
+def test_the_source_reference_is_revealed_only_after_the_question_is_resolved(api, repo):
+    sid = new_session(api, mode="area", area="econometria", question_count=3)["id"]
+    manifest = repo._sessions[UUID(sid)].manifest  # las preguntas emitidas (repositorio en memoria)
+    assert len({q.source_number for q in manifest}) == 3  # la prueba distingue una de otra
+
+    for position in (1, 2, 3):
+        question = api.post(f"/sessions/{sid}/next").json()
+        # Antes de responder: ni la clave ni el número de origen.
+        assert not find_keys(question, "source_number")
+        assert not find_keys(question, "correct_option")
+        assert len(api.get(f"/sessions/{sid}/attempts").json()) == position - 1
+
+        answered = api.post(
+            f"/sessions/{sid}/answer", json={"position": position, "selected_option": "A"}
+        ).json()
+
+        served = manifest[position - 1]
+        assert (answered["area"], answered["source_number"]) == (served.area, served.source_number)
+        assert answered["area"] == question["area"] == "econometria"
+
+    listed = api.get(f"/sessions/{sid}/attempts").json()
+    assert [(a["area"], a["source_number"]) for a in listed] == [
+        (q.area, q.source_number) for q in manifest
+    ]
+
+
+def test_a_timeout_registered_by_next_also_carries_the_reference(api, clock):
+    sid = new_session(api, mode="random", question_count=2)["id"]
+    api.post(f"/sessions/{sid}/next")
+    clock.advance(91)
+    api.post(f"/sessions/{sid}/next")  # registra el vencimiento y emite la 2
+
+    first = api.get(f"/sessions/{sid}/attempts").json()[0]
+
+    assert first["timed_out"] is True
+    assert first["area"] and first["source_number"] >= 1

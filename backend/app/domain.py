@@ -74,6 +74,10 @@ class Attempt:
     timed_out: bool
     time_used_ms: int
     correct_option: OptionLabel
+    # Referencia en el banco fuente (el PDF): área + número, que reinicia por área.
+    # Solo existe aquí, después de resolver la pregunta; `IssuedQuestion` no la lleva.
+    area: Area
+    source_number: int
 
 
 @dataclass(frozen=True)

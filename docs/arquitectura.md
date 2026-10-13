@@ -89,9 +89,9 @@ modo transacción; SSL por defecto (`sslmode=require`).
 | `POST /sessions` | Crea la sesión y su manifiesto completo. Cuerpo: `mode` (`area`, `random`, `simulacro`), `area`, `stage`, `question_count`. En `simulacro` el número lo fija la fase (16/12/8/4). |
 | `GET /sessions/{id}` | Estado: estado, respondidas y, si hay una pregunta pendiente, su posición y plazo. |
 | `POST /sessions/{id}/next` | Emite la siguiente pregunta o repite la pendiente **con el mismo plazo**; registra timeouts vencidos. Nunca devuelve la clave. |
-| `POST /sessions/{id}/answer` | Cuerpo: `position`, `selected_option` (`null` registra el vencimiento). Devuelve acierto, tiempo y `correct_option`. Reenviar devuelve el intento ya guardado. |
+| `POST /sessions/{id}/answer` | Cuerpo: `position`, `selected_option` (`null` registra el vencimiento). Devuelve acierto, tiempo, `correct_option` y la **referencia en el PDF del banco** (`area` + `source_number`, que reinicia por área; sale de `questions`). Reenviar devuelve el intento ya guardado. |
 | `POST /sessions/{id}/abandon` | Cierra una sesión activa; no alimenta el ranking. |
-| `GET /sessions/{id}/attempts` | Intentos ya cerrados de la sesión, con su `correct_option`. Solo posiciones respondidas (incluye timeouts registrados por `next`); la pregunta pendiente no aparece. |
+| `GET /sessions/{id}/attempts` | Intentos ya cerrados de la sesión, con su `correct_option`, `area` y `source_number`. Solo posiciones respondidas (incluye timeouts registrados por `next`); la pregunta pendiente no aparece. |
 | `GET /sessions/{id}/questions/{position}/assets/{name}` | Una figura de una pregunta **ya emitida** en una sesión propia (bytes de `question_assets`). Se identifica por sesión y posición, nunca por un id global; `name` solo admite minúsculas, dígitos, `_` y `-`, con extensión png, jpg o webp (422 si no). Pregunta no emitida, figura inexistente o sesión ajena: 404. Cabeceras `Cache-Control: private`, `ETag` y `X-Content-Type-Options: nosniff`. |
 | `GET /ranking` | Filas del ranking del **equipo del usuario verificado**; el equipo no es un parámetro. Sin identificadores de usuario; `is_me` marca la fila propia. Sin puesto (`rank_position: null`) quien tiene menos de 20 preguntas. |
 

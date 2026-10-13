@@ -70,6 +70,7 @@ const QUESTION_SHAPE: Shape = {
 const ATTEMPT_SHAPE: Shape = {
   position: "number", is_correct: "boolean", timed_out: "boolean",
   time_used_ms: "number", correct_option: "string", selected_option: "string?",
+  area: "string", source_number: "number",
 };
 const RANKING_SHAPE: Shape = {
   display_name: "string", questions_seen: "number", correct_count: "number",

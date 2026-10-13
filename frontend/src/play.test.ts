@@ -26,7 +26,7 @@ function question(position: number, serverNow = "2026-10-12T12:00:00Z"): Questio
 function attempt(position: number, overrides: Partial<Attempt> = {}): Attempt {
   return {
     position, selected_option: "A", is_correct: true, timed_out: false,
-    time_used_ms: 4000, correct_option: "A", ...overrides,
+    time_used_ms: 4000, correct_option: "A", area: "macroeconomia", source_number: 12, ...overrides,
   };
 }
 

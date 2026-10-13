@@ -74,6 +74,8 @@ def _attempt_out(a: Attempt) -> AttemptOut:
         timed_out=a.timed_out,
         time_used_ms=a.time_used_ms,
         correct_option=a.correct_option,
+        area=a.area,
+        source_number=a.source_number,
     )
 
 

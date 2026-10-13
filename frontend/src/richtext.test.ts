@@ -117,6 +117,34 @@ describe("el texto no puede introducir HTML, enlaces ni URLs", () => {
   });
 });
 
+describe("tablas", () => {
+  const WIDE = [
+    "| Variable | Coeficiente | Error estándar | Estadístico t | Valor p | Inferior | Superior | Observaciones |",
+    "|---|---|---|---|---|---|---|---|",
+    "| Constante | 5.482778 | 0.114697 | 47.80 | 0.0000 | 5.257 | 5.708 | 595 |",
+  ].join("\n");
+
+  it("una tabla ancha queda dentro de un contenedor deslizable con nombre", () => {
+    const el = box(renderRich(`Texto antes.\n\n${WIDE}\n\nTexto después.`));
+    const region = el.querySelector(".rich-table");
+
+    expect(region).not.toBeNull();
+    expect(region?.getAttribute("role")).toBe("region");
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.getAttribute("aria-label")).toMatch(/desliza/i);
+    expect(region?.querySelectorAll("th")).toHaveLength(8);
+    expect(region?.parentElement).toBe(el); // la tabla no se sale a otro nivel
+    expect(el.textContent).toContain("Texto después.");
+  });
+
+  it("no se pueden crear regiones ni enfocables desde el texto: el HTML sigue escapado", () => {
+    const el = box(renderRich('<div class="rich-table" role="region" tabindex="0">falso</div>'));
+
+    expect(el.querySelector(".rich-table")).toBeNull();
+    expect(el.querySelector("[tabindex]")).toBeNull();
+  });
+});
+
 describe("LaTeX", () => {
   it("ecuaciones en línea y destacadas", () => {
     const el = box(renderRich("Sea $X_t=u_t+\\theta u_{t-1}$ y\n\n$$\\sum_{i=1}^{n} x_i^2 = \\frac{a}{b}$$"));

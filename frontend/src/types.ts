@@ -46,6 +46,9 @@ export interface Attempt {
   timed_out: boolean;
   time_used_ms: number;
   correct_option: OptionLabel;
+  /** Referencia en el banco fuente (el PDF): área + número, que reinicia por área. */
+  area: Area;
+  source_number: number;
 }
 
 export interface RankingRow {
