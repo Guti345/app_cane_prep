@@ -55,6 +55,16 @@ class IssuedQuestion:
 
 
 @dataclass(frozen=True)
+class QuestionAsset:
+    """Una figura de una pregunta ya emitida en una sesión propia."""
+
+    ref: str
+    mime_type: str
+    sha256: str
+    data: bytes
+
+
+@dataclass(frozen=True)
 class Attempt:
     """Resultado final de una pregunta. Aquí sí se revela la respuesta correcta."""
 
@@ -165,6 +175,13 @@ class GameRepository(Protocol):
         """
 
     def abandon_session(self, session_id: UUID) -> SessionState: ...
+
+    def get_question_asset(
+        self, session_id: UUID, position: int, ref: str
+    ) -> QuestionAsset | None:
+        """La figura `ref` de la pregunta en esa posición, solo si ya fue
+        emitida. `None` si no existe o la pregunta aún no se emitió: una figura
+        no puede adelantar preguntas que el jugador todavía no ha visto."""
 
     def list_attempts(self, session_id: UUID) -> list[Attempt]:
         """Intentos ya cerrados de la sesión, por posición. Solo posiciones

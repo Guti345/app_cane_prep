@@ -1,3 +1,4 @@
+import "katex/dist/katex.min.css";
 import "./styles.css";
 import { mountApp } from "./app";
 import { createApiClient } from "./api";

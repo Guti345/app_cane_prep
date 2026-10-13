@@ -20,12 +20,12 @@ el proyecto real.
 | Vencimiento sin respuesta | `next` registra el timeout de la pregunta vencida y emite la siguiente; si era la última, cierra la sesión (409). |
 | Validación del token | Con Supabase Auth (`GET /auth/v1/user`, equivalente a `get_user`), más perfil de equipo en la base. |
 | Cambios de API para el front | B1 `server_now`, B2 `GET /ranking` y B3 `GET /sessions/{id}/attempts`: implementados. |
-| Enunciados | Texto plano en la fase 2. **Superada por los datos:** entre las 427 activas, 120 traen LaTeX, 8 tablas Markdown y 8 imágenes dentro del texto (`![alt](assets/…png)`); con texto plano no es legible. Markdown/LaTeX es necesario antes de practicar con el banco real (decisiones abiertas abajo). |
+| Enunciados | **Markdown + LaTeX (KaTeX)**, HTML desactivado y sanitizado por lista blanca, implementado (2026-10-13). El banco real lo exigía: entre las 427 activas, 120 traen LaTeX, 8 tablas y 8 imágenes. Detalle en [`frontend-esqueleto.md`](frontend-esqueleto.md). |
 | Curación del banco (2026-10-12) | Estados activa / inactiva / descartada. Las activas llevan `verified_at` y `verified_basis = decision_bloque_ready_2026-10-12`: decisión en bloque confiando en el resaltado, **no** certificación pregunta por pregunta. Listas en `scripts/curacion_2026-10-12.json`; guía en [`importador.md`](importador.md). |
 | Re-importar | No reactiva ni desactiva lo que se cambió a mano: solo inserta las nuevas; `--forzar-estado` es explícito. |
 | Continuar sesión | Con el id guardado en el navegador (por dispositivo). |
 | Contraseñas | Sin recuperación en el MVP: la cambia el administrador desde el panel. |
-| `assets` (imágenes) | El importador ya los valida (14 archivos, todos existen, ninguno huérfano ni con resaltado amarillo). Cómo se sirven sigue **pendiente** (abierta abajo); el cliente no los dibuja todavía. |
+| `assets` (imágenes) | En PostgreSQL (`bytea`, tabla `question_assets`) y servidas por un endpoint autenticado de FastAPI, solo de preguntas ya emitidas en una sesión propia. Sin Storage ni URLs públicas. Solo se dibujan las imágenes listadas en `assets` de la pregunta. |
 
 Detalle y trazabilidad en [`supabase.md`](supabase.md),
 [`revision-sql-supabase.md`](revision-sql-supabase.md) y
@@ -85,12 +85,14 @@ Nada de esto está terminado:
   activas, 55 inactivas, 1 descartada). Falta aplicar la migración de curación
   y cargar en `pruebas_cane`; en el proyecto real, nada (ver
   [`importador.md`](importador.md)).
-- **Markdown/LaTeX y recursos** (bloquea practicar con el banco real): librería
-  de Markdown con KaTeX y sanitizado, y cómo se sirven las imágenes. Decisiones
-  sin tomar; ver el planteamiento en la conversación del 2026-10-12.
-- Frontend: Markdown/LaTeX, recursos (imágenes), prueba en un navegador real
-  y con lector de pantalla, y pulido móvil. Las pantallas existen y están
-  probadas en local, no contra `pruebas_cane`.
+- **Markdown, LaTeX y figuras: implementados y probados en local** con el
+  banco real y a 390 px. Falta aplicar la migración `question_assets` a
+  `pruebas_cane`, importar y repetir la prueba allí; lector de pantalla y
+  teléfono real sin probar.
+- Las ecuaciones destacadas anchas se desplazan en horizontal sin señal visual
+  de que hay más; revisar si hace falta una pista (degradado, flecha).
+- Una figura ancha (p. ej. econometría 56, dos gráficos) queda pequeña a 390 px;
+  valorar tocar para ampliar.
 - Despliegues en Netlify y Render, y comprobar que el frontend alcanza la API
   (CORS incluido: solo se probó el encabezado en el backend, no un navegador).
 

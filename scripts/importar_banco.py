@@ -26,6 +26,7 @@ Reglas que garantiza:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -44,6 +45,7 @@ AREAS = ("econometria", "microeconomia", "macroeconomia", "historia_pensamiento"
 REASON_DUPLICATE = "duplicada_de"
 REASON_UNCLASSIFIED = "revisar_no_clasificada"
 DSN_ENV = "IMPORT_DATABASE_URL"
+DSN_FILE = ROOT / "private-data" / "importador.env"  # una línea: IMPORT_DATABASE_URL=...
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 # Proyecto real de producción: el importador se niega a tocarlo, con o sin --remoto.
@@ -88,7 +90,7 @@ def load_batches(lotes_dir: Path, schema: dict[str, Any]) -> tuple[list[dict], i
             continue
         pending += len(data["pending_questions"])
         for q in data["questions"]:
-            q = dict(q, _bank_id=data["bank_id"], _batch=batch)
+            q = dict(q, _bank_id=data["bank_id"], _batch=batch, _dir=str(path.parent))
             problems.extend(_check_question(q, path.parent))
             questions.append(q)
     seen_id: dict[str, str] = {}
@@ -116,9 +118,44 @@ def _check_question(q: dict, batch_dir: Path) -> list[str]:
     if q["correct_option"] is not None and q["correct_option"] not in labels:
         problems.append(f"{tag}: la clave {q['correct_option']} no está entre las opciones")
     for asset in q["assets"]:
-        if asset["status"] == "available" and not (batch_dir / asset["ref"]).is_file():
+        if asset["status"] != "available":
+            continue
+        path = batch_dir / asset["ref"]
+        if not path.is_file():
             problems.append(f"{tag}: falta el archivo del recurso {asset['ref']}")
+            continue
+        problem = check_image_file(path)
+        if problem:
+            problems.append(f"{tag}: recurso {asset['ref']}: {problem}")
     return problems
+
+
+# Debe coincidir con los límites de public.question_assets.
+MAX_ASSET_BYTES = 2 * 1024 * 1024
+_SIGNATURES = {
+    ".png": ("image/png", lambda b: b.startswith(b"\x89PNG\r\n\x1a\n")),
+    ".jpg": ("image/jpeg", lambda b: b.startswith(b"\xff\xd8\xff")),
+    ".webp": ("image/webp", lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP"),
+}
+
+
+def check_image_file(path: Path) -> str | None:
+    """None si el archivo es una imagen válida para la base; si no, el motivo."""
+    kind = _SIGNATURES.get(path.suffix.lower())
+    if kind is None:
+        return f"extensión {path.suffix!r} no admitida"
+    size = path.stat().st_size
+    if size == 0 or size > MAX_ASSET_BYTES:
+        return f"tamaño {size} fuera de 1..{MAX_ASSET_BYTES} bytes"
+    with path.open("rb") as fh:
+        head = fh.read(16)
+    if not kind[1](head):
+        return "el contenido no corresponde a su extensión"
+    return None
+
+
+def asset_mime(ref: str) -> str:
+    return _SIGNATURES[Path(ref).suffix.lower()][0]
 
 
 # --- 2. plan: clasificación de cada pregunta (función pura) ---------------------------
@@ -316,6 +353,22 @@ def check_expected(summary: Summary, expected: dict[str, Any]) -> list[str]:
 # --- 3. destino: protección ------------------------------------------------------------
 
 
+def read_dsn(env: dict[str, str] | None = None, file: Path = DSN_FILE) -> str | None:
+    """La cadena de conexión, de la variable de entorno o de un archivo local ignorado.
+
+    Nunca se imprime ni se acepta como argumento (quedaría en el historial).
+    """
+    env = os.environ if env is None else env
+    if env.get(DSN_ENV):
+        return env[DSN_ENV]
+    if file.is_file():
+        for line in file.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() == DSN_ENV and value.strip():
+                return value.strip().strip("\"'")
+    return None
+
+
 def check_target(dsn: str, allow_remote: bool) -> str:
     """Devuelve 'local' o 'remoto'. Nunca incluye la cadena en los mensajes."""
     from psycopg.conninfo import conninfo_to_dict
@@ -366,6 +419,13 @@ _FORCE_Q = """
            discarded = %s, review_reason = %s, duplicate_of = %s, review_note = %s
     WHERE id = %s
 """
+_ASSETS_OF = """
+    SELECT question_id, ref, sha256 FROM public.question_assets WHERE question_id = ANY(%s)
+"""
+_INSERT_ASSET = """
+    INSERT INTO public.question_assets (question_id, ref, mime_type, sha256, data)
+    VALUES (%s, %s, %s, %s, %s)
+"""
 _FORCE_K = """
     UPDATE public.question_keys SET verified_at = %s, verified_basis = %s
     WHERE question_id = %s AND verified_at IS NULL
@@ -382,6 +442,10 @@ class ApplyResult:
     state_differs: list[str] = field(default_factory=list)  # existentes con otro estado
     forced: list[str] = field(default_factory=list)
     rolled_back: bool = False
+    assets_inserted: int = 0
+    assets_existing: int = 0
+    assets_bytes: int = 0
+    assets_changed: list[str] = field(default_factory=list)  # mismo ref, otro contenido
 
 
 def _content_signature(statement: str, options: Any, assets: Any, pages: Any) -> str:
@@ -423,10 +487,14 @@ def apply_plan(
         existing = {r["source_id"]: r for r in conn.execute(_EXISTING, (bank_id,)).fetchall()}
         new_q: list[dict] = []
         new_k: list[tuple] = []
+        question_ids: dict[str, Any] = {}
         for p in plan:
             row = existing.get(p.source_id)
+            if row is not None:
+                question_ids[p.source_id] = row["id"]
             if row is None:
                 qid = uuid.uuid4()
+                question_ids[p.source_id] = qid
                 q = p.q
                 new_q.append({
                     "id": qid, "bank_id": bank_id, "source_id": p.source_id, "area": p.area,
@@ -467,6 +535,7 @@ def apply_plan(
                 cur.executemany(_INSERT_Q, new_q)
                 cur.executemany(_INSERT_K, new_k)
         result.inserted = len(new_q)
+        _upload_assets(conn, plan, question_ids, result)
 
         # Evalúa ya los triggers diferidos (clave, ready, D5) para fallar antes del commit.
         conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
@@ -486,6 +555,36 @@ def apply_plan(
             result.rolled_back = True
             raise Rollback
     return result
+
+
+def _upload_assets(conn: Any, plan: list[Planned], question_ids: dict[str, Any],
+                   result: ApplyResult) -> None:
+    """Sube las figuras que aún no están. Aditivo: nunca reemplaza una existente."""
+    wanted = [
+        (question_ids[p.source_id], a["ref"], Path(p.q["_dir"]) / a["ref"], p.source_id)
+        for p in plan for a in p.q["assets"] if a["status"] == "available"
+    ]
+    if not wanted:
+        return
+    have = {
+        (r["question_id"], r["ref"]): r["sha256"]
+        for r in conn.execute(_ASSETS_OF, ([w[0] for w in wanted],)).fetchall()
+    }
+    rows = []
+    for qid, ref, path, source_id in wanted:
+        data = path.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        if (qid, ref) in have:
+            result.assets_existing += 1
+            if have[(qid, ref)] != digest:
+                result.assets_changed.append(f"{source_id}: {ref}")
+            continue
+        rows.append((qid, ref, asset_mime(ref), digest, data))
+        result.assets_bytes += len(data)
+    if rows:
+        with conn.cursor() as cur:
+            cur.executemany(_INSERT_ASSET, rows)
+    result.assets_inserted = len(rows)
 
 
 # --- 5. informe ---------------------------------------------------------------------------
@@ -551,6 +650,10 @@ def render_report(
         for line in result.state_differs[:20]:
             w(f"    {line}")
         w(f"  forzadas: {len(result.forced)}")
+        w(f"  recursos: insertados {result.assets_inserted} ({result.assets_bytes} bytes), "
+          f"ya existentes {result.assets_existing}, con contenido distinto {len(result.assets_changed)}")
+        for line in result.assets_changed:
+            w(f"    {line}")
     return "\n".join(out)
 
 
@@ -596,9 +699,10 @@ def main(argv: list[str] | None = None) -> int:
     if diffs:
         exit_code = 2
     elif args.aplicar:
-        dsn = os.environ.get(DSN_ENV)
+        dsn = read_dsn()
         if not dsn:
-            print(f"Falta la variable de entorno {DSN_ENV} (cadena de conexión del destino).")
+            print(f"Falta {DSN_ENV}: defínela como variable de entorno o en una línea de "
+                  f"{DSN_FILE.relative_to(ROOT)} (ignorado por Git).")
             return 2
         target = check_target(dsn, args.remoto)
         import psycopg

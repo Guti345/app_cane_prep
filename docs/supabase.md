@@ -52,7 +52,7 @@ Generada con `npx supabase migration new supabase_cane`:
 `supabase/migrations/20261009212148_supabase_cane.sql`. La versión
 `20261009212148` es la fecha y hora UTC de creación (AAAAMMDDHHMMSS) y es la
 clave que la CLI registra en el historial remoto. No se renombra tras
-aplicarla. Hay dos migraciones, en este orden:
+aplicarla. Hay tres migraciones, en este orden:
 
 1. `20261009212148_supabase_cane.sql`: el esquema. Probada en `pruebas_cane`
    (14/14).
@@ -62,7 +62,13 @@ aplicarla. Hay dos migraciones, en este orden:
    **aditiva** y no toca la primera. **Solo probada en PostgreSQL local**
    (PGlite); no se aplicó a `pruebas_cane` ni al real. Para probarla en
    pruebas, mismo método de la carpeta temporal de abajo copiando solo ese
-   archivo. Detalle en [`importador.md`](importador.md).
+   archivo. **Aplicada a `pruebas_cane` el 2026-10-13** (con la CLI, desde la
+   carpeta temporal; `migration list` coincide). Detalle en
+   [`importador.md`](importador.md).
+3. `20261013044404_question_assets.sql` (2026-10-13): tabla
+   `question_assets` (figuras en `bytea`, RLS activado, sin acceso para
+   `anon`/`authenticated`, congelada para versiones usadas). **Solo probada en
+   PostgreSQL local**; no aplicada a `pruebas_cane` ni al real.
 
 ## Decisiones adoptadas
 
@@ -147,8 +153,8 @@ autoriza.
 - *Automatic branching* y *Deploy to production* de la integración con GitHub
   están desactivados; si estuvieran activos, revisa qué se desplegó antes.
 - `supabase/migrations/` contiene solo `.gitkeep` y
-  `20261009212148_supabase_cane.sql` y `20261013034510_curacion_banco.sql`
-  (ninguna migración vacía de más).
+  `20261009212148_supabase_cane.sql`, `20261013034510_curacion_banco.sql` y
+  `20261013044404_question_assets.sql` (ninguna migración vacía de más).
 - ✔ El encabezado de la migración ya refleja que fue probada y que no está
   aplicada al real. Tras el `push` no edites la migración: si algo cambia,
   va en una migración nueva.
@@ -167,8 +173,8 @@ siguiente. No pegues contraseñas en el chat ni las pases con `-p`/`--password`.
 | 1 | `npx supabase login` | Abre el navegador para autenticar la CLI con tu cuenta y guarda un token en tu equipo. Si ya hay sesión, puede omitirse. No uses `--token` con el valor en la línea de comandos. | No |
 | 2 | `npx supabase link --project-ref REF_DEL_PROYECTO_REAL` | Asocia la carpeta al proyecto remoto (escribe estado en `supabase/.temp/`, ignorado). Puede pedir la contraseña de la base: solo en la terminal. | No |
 | 3 | `Get-Content supabase\.temp\project-ref` | Confirma que el ref vinculado es el real y **no** el de `pruebas_cane`. | No |
-| 4 | `npx supabase migration list` | Compara migraciones locales con las del remoto. Esperado: las dos migraciones aparecen como locales, remoto vacío. | No (lectura) |
-| 5 | `npx supabase db push --dry-run` | Lista qué se aplicaría, sin aplicarlo. Deben aparecer **solo** `20261009212148_supabase_cane.sql` y `20261013034510_curacion_banco.sql`, en ese orden. El aviso sobre `.gitkeep` es inofensivo. No prueba que el SQL se ejecute. | No |
+| 4 | `npx supabase migration list` | Compara migraciones locales con las del remoto. Esperado: las tres migraciones aparecen como locales, remoto vacío. | No (lectura) |
+| 5 | `npx supabase db push --dry-run` | Lista qué se aplicaría, sin aplicarlo. Deben aparecer **solo** `20261009212148_supabase_cane.sql`, `20261013034510_curacion_banco.sql` y `20261013044404_question_assets.sql`, en ese orden. El aviso sobre `.gitkeep` es inofensivo. No prueba que el SQL se ejecute. | No |
 | 6 | `npx supabase db push` | **Aplica las migraciones** pendientes al proyecto vinculado y las registra en el historial. Pide confirmación. | **Sí** |
 
 ### Cuándo detenerse
@@ -178,7 +184,7 @@ Detente y describe el problema, sin improvisar, si en el paso 4 o 5:
 - aparecen migraciones desconocidas, tablas preexistentes o un historial
   local/remoto inconsistente;
 - el ref del paso 3 no es el esperado;
-- el dry-run lista algo distinto de las dos migraciones.
+- el dry-run lista algo distinto de las tres migraciones.
 
 Tampoco uses `migration repair`, `db reset --linked`, `DROP` ni repitas un
 `CREATE` para "hacerlo pasar". Si el paso 6 falla a medias, **no lo repitas**:

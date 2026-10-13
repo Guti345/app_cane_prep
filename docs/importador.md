@@ -28,8 +28,8 @@ No se ha ejecutado contra `pruebas_cane` ni contra el proyecto real.
   `backend/requirements-dev.txt`): `pip install -r requirements-dev.txt`.
 - `private-data/lotes/` con las carpetas `<lote>/<lote>.json` y
   `<lote>/assets/` y el esquema `private-data/esquema_preguntas_schema.json`.
-- Para cargar: las dos migraciones aplicadas en el destino (la segunda añade
-  las columnas de curación).
+- Para cargar: las tres migraciones aplicadas en el destino (la segunda añade
+  las columnas de curación y la tercera la tabla de figuras).
 
 ## Uso
 
@@ -155,31 +155,60 @@ JOIN public.question_keys k ON k.question_id = q.id
 WHERE q.active AND (k.correct_option IS NULL OR k.verified_at IS NULL);
 ```
 
+## Figuras (imágenes)
+
+Las figuras de `assets/` se suben a `public.question_assets` (bytea) en la misma
+transacción que las preguntas. Se sirven por un endpoint autenticado de FastAPI
+(ver [`arquitectura.md`](arquitectura.md)); no hay Storage ni URLs públicas.
+
+- Antes de cargar se valida cada archivo: existe, tiene extensión `png`, `jpg`
+  o `webp`, su contenido corresponde a esa extensión (firma del archivo) y pesa
+  entre 1 byte y 2 MiB. Un SVG o un archivo disfrazado se rechaza.
+- Se guarda el `sha256` y el tipo MIME. Solo se suben las figuras con estado
+  `available`.
+- **Aditivo:** una figura que ya está no se reemplaza. Si el archivo cambió, se
+  lista como *contenido distinto* y se deja como estaba (una figura de una
+  pregunta ya usada en sesiones es inmutable, como su enunciado).
+- Con las 483 preguntas son 14 figuras (785 186 bytes); 8 pertenecen a
+  preguntas activas.
+
+## Cadena de conexión
+
+Se lee de la variable de entorno `IMPORT_DATABASE_URL` o, si no existe, de una
+línea `IMPORT_DATABASE_URL=...` en `private-data/importador.env` (ignorado por
+Git). El importador nunca la imprime y no la acepta como argumento.
+
 ## Orden recomendado contra `pruebas_cane`
 
-1. Aplicar `20261013034510_curacion_banco.sql` con la CLI desde la carpeta
-   temporal vinculada a pruebas (ver [`supabase.md`](supabase.md)).
-2. Limpiar las 24 preguntas ficticias de
-   [`prueba-backend-datos.sql`](prueba-backend-datos.sql) (están al final de
-   ese archivo, comentadas); si no, se mezclan con el banco real.
-3. `--aplicar --remoto --ensayo`, y si el informe es el esperado, sin `--ensayo`.
-4. Repetir sin `--ensayo` para comprobar que no inserta nada.
+1. ✔ *(2026-10-13)* `20261013034510_curacion_banco.sql` aplicada con la CLI
+   desde la carpeta temporal vinculada a pruebas (ver
+   [`supabase.md`](supabase.md)); historial local y remoto coinciden.
+2. ✔ *(2026-10-13)* Limpiadas las 24 preguntas ficticias de
+   [`prueba-backend-datos.sql`](prueba-backend-datos.sql) con intentos →
+   sesiones → preguntas (las claves caen en cascada). Perfiles y equipos de
+   prueba intactos.
+3. Aplicar `20261013044404_question_assets.sql` de la misma forma.
+4. `--aplicar --remoto --ensayo`, y si el informe es el esperado (483 / 427 /
+   55 / 1 y 14 figuras), sin `--ensayo`.
+5. Repetir sin `--ensayo` para comprobar que no inserta nada.
 
 ## Pruebas
 
-`backend/tests/integration/test_importador.py` (27 pruebas): clasificación,
+`backend/tests/integration/test_importador.py` (35 pruebas): clasificación,
 errores de curación, protección del destino, lectura de lotes, y carga contra
 PostgreSQL con las migraciones reales (activa sin `verified_at` rechazada,
 re-ejecución idempotente, cambios manuales respetados, `--forzar-estado`,
-ensayo que revierte, congelado de versiones usadas). Se comprobó con
-mutaciones que cada regla clave rompe alguna prueba.
+ensayo que revierte, congelado de versiones usadas, figuras: firma y tamaño,
+subida con hash, sin reemplazo, tabla sin acceso para `anon`/`authenticated`,
+inmutabilidad de figuras usadas y entrega solo de preguntas ya emitidas). Se
+comprobó con mutaciones que cada regla clave rompe alguna prueba.
 
 Se ejecutan con el resto: `cd backend; python -m pytest`.
 
 ## Límites
 
-- Los recursos (imágenes) se **validan** (existen, ninguna huérfana) pero no se
-  suben a ningún sitio: eso depende de la decisión de cómo servirlos.
+- No hay modo para reemplazar una figura ya subida; habría que crear una
+  revisión nueva de la pregunta.
 - `pending_questions` de los lotes se cuenta pero no se importa (hoy hay 0).
 - No hay modo para publicar una revisión nueva de una pregunta ya cargada.
 - La protección contra el proyecto real compara la referencia del proyecto con

@@ -92,6 +92,7 @@ modo transacción; SSL por defecto (`sslmode=require`).
 | `POST /sessions/{id}/answer` | Cuerpo: `position`, `selected_option` (`null` registra el vencimiento). Devuelve acierto, tiempo y `correct_option`. Reenviar devuelve el intento ya guardado. |
 | `POST /sessions/{id}/abandon` | Cierra una sesión activa; no alimenta el ranking. |
 | `GET /sessions/{id}/attempts` | Intentos ya cerrados de la sesión, con su `correct_option`. Solo posiciones respondidas (incluye timeouts registrados por `next`); la pregunta pendiente no aparece. |
+| `GET /sessions/{id}/questions/{position}/assets/{name}` | Una figura de una pregunta **ya emitida** en una sesión propia (bytes de `question_assets`). Se identifica por sesión y posición, nunca por un id global; `name` solo admite minúsculas, dígitos, `_` y `-`, con extensión png, jpg o webp (422 si no). Pregunta no emitida, figura inexistente o sesión ajena: 404. Cabeceras `Cache-Control: private`, `ETag` y `X-Content-Type-Options: nosniff`. |
 | `GET /ranking` | Filas del ranking del **equipo del usuario verificado**; el equipo no es un parámetro. Sin identificadores de usuario; `is_me` marca la fila propia. Sin puesto (`rank_position: null`) quien tiene menos de 20 preguntas. |
 
 - `server_now` (hora de la base de datos) viaja en la respuesta de `next` y en
@@ -126,12 +127,12 @@ pruebas (2026-10-12).
 - API de juego completa en local (sesiones, preguntas, respuestas, abandono),
   con autenticación por Supabase Auth y repositorio PostgreSQL.
 - Frontend con las seis pantallas (ver [`frontend-esqueleto.md`](frontend-esqueleto.md)),
-  texto plano en los enunciados.
-- Dos migraciones SQL, **ninguna aplicada al proyecto real**: el esquema
-  (probada en un proyecto de pruebas) y la curación del banco (solo en local).
+  con Markdown, LaTeX (KaTeX) y figuras en enunciados y opciones.
+- Tres migraciones SQL, **ninguna aplicada al proyecto real**: el esquema y la
+  curación del banco (aplicadas en el proyecto de pruebas) y las figuras (solo
+  en local).
 - Importador del banco (`scripts/importar_banco.py`, ver
   [`importador.md`](importador.md)), probado en local con las 483 preguntas.
 
 No existen: banco de preguntas cargado en Supabase, usuarios y perfiles del equipo,
-Markdown/LaTeX ni recursos (imágenes) en las preguntas, repetir sesión,
-despliegues.
+repetir sesión, despliegues.

@@ -13,6 +13,7 @@ import psycopg
 import pytest
 
 OPTIONS = [{"label": c, "text_md": f"opción {c}"} for c in "ABCD"]
+PNG = b"\x89PNG\r\n\x1a\n" + b"figura-ficticia"
 
 
 def q(area, number, *, status="ready", correct="A", warnings=None, assets=None, bank="cane-2026"):
@@ -33,6 +34,7 @@ def q(area, number, *, status="ready", correct="A", warnings=None, assets=None, 
         "warnings": warnings or [],
         "_bank_id": bank,
         "_batch": f"{area}_01",
+        "_dir": f"/no-existe/{area}_01",  # solo lo usan las pruebas con figuras
     }
 
 
@@ -241,7 +243,7 @@ def test_batches_are_read_and_problems_are_collected(importer, schema, tmp_path)
         "ref": "assets/cane-2026-econometria-002-fig-01.png", "kind": "figure",
         "alt": "figura", "source_page": 1, "status": "available"}])
     write_batch(tmp_path, "econometria_01", [ok, with_asset],
-                {"cane-2026-econometria-002-fig-01.png": b"png"})
+                {"cane-2026-econometria-002-fig-01.png": PNG})
     questions, pending, problems = importer.load_batches(tmp_path, schema)
     assert (len(questions), pending, problems) == (2, 0, [])
 
@@ -425,3 +427,147 @@ def test_editorial_state_can_change_on_a_used_question_but_content_cannot(db, se
         db, f"UPDATE public.question_keys SET correct_option = 'B' WHERE question_id = '{used}'",
         "Versión usada",
     )
+
+
+# --- figuras ------------------------------------------------------------------------------------
+
+
+def figure(ref="assets/cane-2026-econometria-002-fig-01.png", status="available"):
+    return {"ref": ref, "kind": "figure", "alt": "figura", "source_page": 1, "status": status}
+
+
+def with_figure(importer, tmp_path, content=PNG, ref="assets/cane-2026-econometria-002-fig-01.png"):
+    """Un banco donde econometria 2 trae una figura que existe en `tmp_path`."""
+    (tmp_path / "assets").mkdir(exist_ok=True)
+    (tmp_path / ref).write_bytes(content)
+    questions = bank()
+    questions[1]["assets"] = [figure(ref)]
+    questions[1]["_dir"] = str(tmp_path)
+    return plan_of(importer, questions)
+
+
+def test_image_files_are_checked_for_signature_size_and_extension(importer, tmp_path):
+    ok = tmp_path / "a.png"
+    ok.write_bytes(PNG)
+    assert importer.check_image_file(ok) is None
+    jpg = tmp_path / "b.jpg"
+    jpg.write_bytes(b"\xff\xd8\xff\xe0" + b"x" * 8)
+    assert importer.check_image_file(jpg) is None
+
+    disguised = tmp_path / "c.png"
+    disguised.write_bytes(b"<svg onload=alert(1)></svg>")
+    assert "no corresponde" in importer.check_image_file(disguised)
+    empty = tmp_path / "d.png"
+    empty.write_bytes(b"")
+    assert "tamaño" in importer.check_image_file(empty)
+    huge = tmp_path / "e.png"
+    huge.write_bytes(PNG + b"0" * importer.MAX_ASSET_BYTES)
+    assert "tamaño" in importer.check_image_file(huge)
+    svg = tmp_path / "f.svg"
+    svg.write_bytes(b"<svg/>")
+    assert "extensión" in importer.check_image_file(svg)
+
+
+def test_a_figure_that_is_not_an_image_is_a_batch_problem(importer, tmp_path):
+    batch = tmp_path / "econometria_01"
+    (batch / "assets").mkdir(parents=True)
+    (batch / "assets" / "x.png").write_bytes(b"no soy una imagen")
+    question = q("econometria", 2, assets=[figure("assets/x.png")])
+    problems = importer._check_question({**question, "_batch": "lote"}, batch)
+    assert any("no corresponde a su extensión" in p for p in problems)
+
+
+def stored_assets(db):
+    return {(r["source_id"], r["ref"]): r for r in db.execute(
+        "SELECT q.source_id, a.ref, a.mime_type, a.sha256, a.data "
+        "FROM public.question_assets a JOIN public.questions q ON q.id = a.question_id").fetchall()}
+
+
+def test_figures_are_uploaded_with_their_hash_and_mime(loader, db, importer, tmp_path):
+    import hashlib
+
+    result = loader(with_figure(importer, tmp_path))
+    assert (result.assets_inserted, result.assets_existing, result.assets_bytes) == (1, 0, len(PNG))
+    got = stored_assets(db)
+    row = got[("cane-2026-econometria-002", "assets/cane-2026-econometria-002-fig-01.png")]
+    assert bytes(row["data"]) == PNG
+    assert row["mime_type"] == "image/png"
+    assert row["sha256"] == hashlib.sha256(PNG).hexdigest()
+
+
+def test_rerunning_does_not_duplicate_or_replace_figures(loader, db, importer, tmp_path):
+    loader(with_figure(importer, tmp_path))
+    again = loader(with_figure(importer, tmp_path))
+    assert (again.assets_inserted, again.assets_existing, again.assets_changed) == (0, 1, [])
+
+    changed = loader(with_figure(importer, tmp_path, content=PNG + b"otra-version"))
+    assert changed.assets_inserted == 0
+    assert changed.assets_changed == [
+        "cane-2026-econometria-002: assets/cane-2026-econometria-002-fig-01.png"]
+    row = next(iter(stored_assets(db).values()))
+    assert bytes(row["data"]) == PNG  # no se pisó
+
+
+def test_pending_figures_are_not_uploaded_and_cannot_be_active(loader, db, importer):
+    questions = bank()
+    # econometria 5 (inactiva) con figura pendiente: solo es coherente como needs_review
+    questions[4].update(review_status="needs_review", warnings=WARNING,
+                        assets=[figure(status="pending_extract")])
+    result = loader(plan_of(importer, questions))
+    assert result.assets_inserted == 0 and stored_assets(db) == {}
+
+    questions[1]["assets"] = [figure(status="pending_extract")]  # econometria 2: activa
+    with pytest.raises(importer.ImportPlanError, match="activa con recurso pendiente"):
+        plan_of(importer, questions)
+
+
+def test_figures_are_not_readable_by_api_roles_and_have_rls(db):
+    row = db.execute(
+        "SELECT relrowsecurity, "
+        "has_table_privilege('anon', 'public.question_assets', 'SELECT') AS anon_read, "
+        "has_table_privilege('authenticated', 'public.question_assets', 'SELECT') AS auth_read "
+        "FROM pg_class WHERE oid = 'public.question_assets'::regclass").fetchone()
+    assert (row["relrowsecurity"], row["anon_read"], row["auth_read"]) == (True, False, False)
+
+
+def test_a_used_figure_cannot_be_changed(db, seed, repo):
+    team = seed.team()
+    user = seed.user(team)
+    seed.bank(1)
+    repo.create_session(user_id=user, team_id=team, mode="random", area=None, stage=None,
+                        question_count=3)
+    used = db.execute("SELECT question_id FROM public.session_questions LIMIT 1").fetchone()["question_id"]
+    db.execute(
+        "INSERT INTO public.question_assets (question_id, ref, mime_type, sha256, data) "
+        "VALUES (%s, 'assets/x-fig-01.png', 'image/png', %s, %s)",
+        (used, "0" * 64, PNG),
+    )  # insertar sí se puede (aditivo)
+    expect_error_in_server(
+        db, f"UPDATE public.question_assets SET data = decode('00', 'hex') WHERE question_id = '{used}'",
+        "Versión usada")
+    expect_error_in_server(
+        db, f"DELETE FROM public.question_assets WHERE question_id = '{used}'", "Versión usada")
+
+
+def test_repository_serves_a_figure_only_after_the_question_was_issued(db, seed, repo):
+    team = seed.team()
+    user = seed.user(team)
+    seed.bank(2)
+    session = repo.create_session(user_id=user, team_id=team, mode="random", area=None,
+                                  stage=None, question_count=3)
+    manifest = db.execute(
+        "SELECT position, question_id FROM public.session_questions "
+        "WHERE session_id = %s ORDER BY position", (session.id,)).fetchall()
+    for row in manifest:
+        db.execute(
+            "INSERT INTO public.question_assets (question_id, ref, mime_type, sha256, data) "
+            "VALUES (%s, 'assets/fig-01.png', 'image/png', %s, %s)",
+            (row["question_id"], "a" * 64, PNG),
+        )
+
+    assert repo.get_question_asset(session.id, 1, "assets/fig-01.png") is None  # aún no emitida
+    repo.issue_next_question(session.id)
+    asset = repo.get_question_asset(session.id, 1, "assets/fig-01.png")
+    assert (asset.data, asset.mime_type, asset.sha256) == (PNG, "image/png", "a" * 64)
+    assert repo.get_question_asset(session.id, 2, "assets/fig-01.png") is None  # tampoco la siguiente
+    assert repo.get_question_asset(session.id, 1, "assets/otra.png") is None

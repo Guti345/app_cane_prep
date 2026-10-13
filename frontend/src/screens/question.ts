@@ -1,4 +1,5 @@
 import { h } from "../dom";
+import { hydrateFigures, renderRich, renderRichInline, type FigureLoader } from "../richtext";
 import { announcement, formatClock, startCountdown } from "../timer";
 import { AREA_LABELS, QUESTION_SECONDS, type OptionLabel, type Question, type Session } from "../types";
 import { card } from "./layout";
@@ -11,6 +12,8 @@ export interface QuestionViewProps {
   /** `null` registra el vencimiento. */
   onAnswer(option: OptionLabel | null): void;
   onAbandon(): void;
+  /** Obtiene una figura (blob:) por su ref; sin él, las figuras no se cargan. */
+  loadFigure?: FigureLoader;
   now?: () => number;
 }
 
@@ -39,9 +42,16 @@ export function renderQuestion(container: HTMLElement, props: QuestionViewProps)
       },
       h("span", { class: "option-label" }, `${option.label}.`),
       " ",
-      option.text_md,
+      h("span", { class: "option-text rich" }, renderRichInline(option.text_md)),
     ),
   );
+
+  const statement = h(
+    "div",
+    { class: "statement rich" },
+    renderRich(question.statement_md, { assets: question.assets }),
+  );
+  if (props.loadFigure) hydrateFigures(statement, props.loadFigure);
 
   function lock(message: string): void {
     settled = true;
@@ -92,7 +102,7 @@ export function renderQuestion(container: HTMLElement, props: QuestionViewProps)
       h("div", { class: "timer-bar", "aria-hidden": "true" }, bar),
       live,
       card(
-        h("p", { class: "statement" }, question.statement_md),
+        statement,
         h("div", { class: "options", role: "group", "aria-label": "Opciones de respuesta" }, ...buttons),
         status,
       ),

@@ -31,6 +31,8 @@ export interface ApiClient {
   abandon(id: string): Promise<Session>;
   attempts(id: string): Promise<Attempt[]>;
   ranking(): Promise<RankingRow[]>;
+  /** Figura de una pregunta ya emitida (con la sesión del usuario). */
+  figure(id: string, position: number, name: string): Promise<Blob>;
 }
 
 type FetchLike = typeof fetch;
@@ -82,7 +84,8 @@ export function createApiClient(
 ): ApiClient {
   const root = baseUrl.replace(/\/+$/, "");
 
-  async function request(method: "GET" | "POST", path: string, body?: unknown): Promise<unknown> {
+  /** Envía la petición con la sesión del usuario. Lanza `ApiError` si no hay respuesta. */
+  async function send(method: "GET" | "POST", path: string, body?: unknown): Promise<Response> {
     const token = await getToken();
     if (!token) {
       throw new ApiError(401, "http", "No hay sesión iniciada");
@@ -108,7 +111,11 @@ export function createApiClient(
     } finally {
       clearTimeout(timer);
     }
+    return response;
+  }
 
+  async function request(method: "GET" | "POST", path: string, body?: unknown): Promise<unknown> {
+    const response = await send(method, path, body);
     let json: unknown = null;
     try {
       json = await response.json();
@@ -156,6 +163,18 @@ export function createApiClient(
         throw new ApiError(0, "invalid", "Respuesta inesperada (ranking)");
       }
       return json.map((item) => expectShape<RankingRow>(item, RANKING_SHAPE, "ranking"));
+    },
+    async figure(id, position, name) {
+      const path = `/sessions/${sid(id)}/questions/${position}/assets/${encodeURIComponent(name)}`;
+      const response = await send("GET", path);
+      if (!response.ok) {
+        throw new ApiError(response.status, "http", `Error HTTP ${response.status}`);
+      }
+      const type = (response.headers.get("content-type") ?? "").split(";")[0]!.trim();
+      if (!["image/png", "image/jpeg", "image/webp"].includes(type)) {
+        throw new ApiError(0, "invalid", "La figura no es una imagen");
+      }
+      return response.blob();
     },
   };
 }

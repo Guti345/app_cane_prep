@@ -10,7 +10,7 @@ Reglas de este módulo:
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Response
 
 from app.dependencies import get_current_user, get_repository
 from app.domain import (
@@ -36,6 +36,10 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/sessions", tags=["juego"])
+
+# Nombre de archivo de una figura: el mismo patrón que impone la tabla
+# `question_assets` (sin barras ni puntos de más: no hay rutas del sistema).
+ASSET_NAME_PATTERN = r"^[a-z0-9_-]+\.(png|jpg|webp)$"
 
 
 def _owned_session(
@@ -131,6 +135,36 @@ def next_question(
         assets=list(q.assets),
         deadline_at=q.deadline_at,
         server_now=q.server_now,
+    )
+
+
+@router.get("/{session_id}/questions/{position}/assets/{name}")
+def question_asset(
+    session_id: UUID,
+    position: int = Path(ge=1),
+    name: str = Path(pattern=ASSET_NAME_PATTERN),
+    user: CurrentUser = Depends(get_current_user),
+    repo: GameRepository = Depends(get_repository),
+) -> Response:
+    """Una figura de una pregunta ya emitida en una sesión propia.
+
+    La figura se identifica por sesión y posición, nunca por un identificador
+    global: no hay forma de pedir la de una pregunta que no se ha emitido ni la
+    de una sesión ajena (ambas, 404). El nombre se valida contra un patrón
+    cerrado y solo se usa como clave de búsqueda.
+    """
+    _owned_session(repo, session_id, user)
+    asset = repo.get_question_asset(session_id, position, f"assets/{name}")
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Figura no encontrada")
+    return Response(
+        content=asset.data,
+        media_type=asset.mime_type,
+        headers={
+            "Cache-Control": "private, max-age=3600",
+            "ETag": f'"{asset.sha256}"',
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

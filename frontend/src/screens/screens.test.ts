@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// jsdom: estas pantallas pasan por DOMPurify, que no es fiable con happy-dom.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../api";
 import type { Deps } from "../deps";
@@ -123,11 +125,11 @@ describe("pantalla de pregunta", () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  function show(q: Question, offsetMs = 0) {
+  function show(q: Question, offsetMs = 0, loadFigure?: (ref: string) => Promise<string>) {
     const onAnswer = vi.fn();
     const onAbandon = vi.fn();
     const stop = renderQuestion(container, {
-      session: SESSION, question: q, offsetMs, onAnswer, onAbandon, now: () => now,
+      session: SESSION, question: q, offsetMs, onAnswer, onAbandon, loadFigure, now: () => now,
     });
     const advance = (ms: number) => {
       now += ms;
@@ -143,6 +145,67 @@ describe("pantalla de pregunta", () => {
     expect([...container.querySelectorAll(".option")].map((b) => b.getAttribute("data-label"))).toEqual(["A", "B", "C"]);
     expect(container.querySelector(".timer")?.textContent).toBe("1:30");
     expect(container.textContent).toContain("Pregunta 1 de 3");
+  });
+
+  it("dibuja ecuaciones y tablas del enunciado y ecuaciones en las opciones", () => {
+    show(question({
+      statement_md: "Sea $x^2$ el cuadrado.\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+      options: [
+        { label: "A", text_md: "$a_i + b_j$" }, { label: "B", text_md: "**dos**" }, { label: "C", text_md: "tres" },
+      ],
+    }));
+
+    expect(container.querySelector(".statement .katex")).not.toBeNull();
+    expect(container.querySelector(".statement table td")?.textContent).toBe("1");
+    expect(container.querySelector('.option[data-label="A"] .katex')).not.toBeNull();
+    expect(container.querySelector('.option[data-label="B"] strong')?.textContent).toBe("dos");
+  });
+
+  it("carga la figura listada con el cargador autenticado y descarta la ajena", async () => {
+    const ref = "assets/cane-2026-econometria-006-fig-01.png";
+    const loadFigure = vi.fn().mockResolvedValue("blob:http://localhost/figura");
+    show(
+      question({
+        statement_md: `Observe la serie:\n\n![serie](${ref})\n\n![ajena](https://evil.test/p.png)`,
+        assets: [{ ref, kind: "figure", alt: "Serie", source_page: 3, status: "available" }],
+      }),
+      0,
+      loadFigure,
+    );
+
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    await vi.waitFor(() => expect(images[0]!.getAttribute("src")).toBe("blob:http://localhost/figura"));
+    expect(loadFigure).toHaveBeenCalledTimes(1);
+    expect(loadFigure).toHaveBeenCalledWith(ref);
+    expect(container.innerHTML).not.toContain("evil.test");
+  });
+
+  it("si la figura no carga, la pregunta sigue siendo respondible", async () => {
+    const ref = "assets/cane-2026-econometria-006-fig-01.png";
+    const { onAnswer } = show(
+      question({
+        statement_md: `![serie](${ref})`,
+        assets: [{ ref, kind: "figure", alt: "Serie", source_page: 3, status: "available" }],
+      }),
+      0,
+      () => Promise.reject(new Error("404")),
+    );
+
+    await vi.waitFor(() => expect(container.querySelector(".figure-missing")).not.toBeNull());
+    click(container.querySelector('.option[data-label="B"]'));
+
+    expect(onAnswer).toHaveBeenCalledWith("B");
+  });
+
+  it("una ecuación inválida no rompe la pantalla ni el cronómetro", () => {
+    const { advance, onAnswer } = show(question({ statement_md: "Antes $x^{2$ después." }));
+
+    expect(container.querySelector(".statement .katex-error")).not.toBeNull();
+    expect(container.querySelector(".statement")?.textContent).toContain("después.");
+    advance(1000);
+    expect(container.querySelector(".timer")?.textContent).toBe("1:29");
+    expect(onAnswer).not.toHaveBeenCalled();
   });
 
   it("el HTML del enunciado y de las opciones se muestra como texto, no se ejecuta", () => {

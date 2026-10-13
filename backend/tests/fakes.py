@@ -5,6 +5,7 @@ emisión) para probar las rutas. No es la fuente de verdad de las reglas: esas
 las impone PostgreSQL y se validan con `docs/prueba-migracion.sql`.
 """
 
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -19,6 +20,7 @@ from app.domain import (
     NothingPending,
     Option,
     OptionLabel,
+    QuestionAsset,
     QuestionNotIssued,
     RankingRow,
     SessionClosed,
@@ -52,6 +54,8 @@ class FakeQuestion:
     options: tuple[Option, ...]
     correct_option: OptionLabel
     assets: tuple[dict, ...] = ()
+    # Bytes de las figuras por `ref`; en la base viven en question_assets.
+    asset_data: dict[str, bytes] = field(default_factory=dict)
 
 
 def build_pool(per_area: int = 20) -> list[FakeQuestion]:
@@ -229,6 +233,19 @@ class InMemoryGameRepository:
             raise SessionClosed()
         s.status = "abandoned"
         return self._state(s)
+
+    def get_question_asset(
+        self, session_id: UUID, position: int, ref: str
+    ) -> QuestionAsset | None:
+        s = self._get(session_id)
+        if position not in s.issued:  # solo preguntas ya emitidas
+            return None
+        data = s.manifest[position - 1].asset_data.get(ref)
+        if data is None:
+            return None
+        return QuestionAsset(
+            ref=ref, mime_type="image/png", sha256=hashlib.sha256(data).hexdigest(), data=data
+        )
 
     def list_attempts(self, session_id: UUID) -> list[Attempt]:
         s = self._get(session_id)

@@ -3,9 +3,10 @@
 **Estado: implementado; probado en local y en un navegador real contra
 `pruebas_cane`** (2026-10-12, resultado informado por el usuario: inicio de
 sesión, sesión con cronómetro, recarga a mitad, ranking y CORS). Cubre las
-fases 1 a 3 con texto plano en los enunciados; las decisiones tomadas están al
-final. Lo que no está hecho: Markdown/LaTeX, recursos (imágenes), pruebas con
-lector de pantalla y en móvil, y despliegue en Netlify.
+fases 1 a 3. El 2026-10-13 se añadió el **texto enriquecido** (Markdown, LaTeX y
+figuras; ver abajo), probado con el banco real y a 390 px de ancho. Lo que no
+está hecho: pruebas con lector de pantalla y en un teléfono real, y despliegue
+en Netlify.
 
 Los cambios al backend B1, B2 y B3 se implementaron (ver
 [`arquitectura.md`](arquitectura.md)).
@@ -26,7 +27,8 @@ Los cambios al backend B1, B2 y B3 se implementaron (ver
 | --- | --- | --- |
 | `@supabase/supabase-js` | Iniciar sesión, mantener y renovar el token | Fase 1 |
 | `vitest` (dev) | Probar el cronómetro y la máquina de estados | Fase 1 |
-| `markdown-it`, `katex` (+ sanitizado) | Enunciados con Markdown y LaTeX | Fase 3, a decidir |
+| `markdown-it`, `katex`, `dompurify` | Enunciados con Markdown y LaTeX, con sanitizado | Fase 3 ✔ |
+| `jsdom` (dev) | DOM completo para probar el sanitizado (con happy-dom, DOMPurify no filtra) | Fase 3 ✔ |
 
 ## Estructura
 
@@ -164,9 +166,9 @@ Manejo de errores del cliente de API:
 - **Token.** Lo gestiona `supabase-js` (renovación automática); se pide con
   `getSession()` en cada llamada y no se copia a otras variables ni se
   registra en consola.
-- **XSS.** `statement_md` y `text_md` vienen de la base: se insertan con
-  `textContent` en la fase 1. Cuando se active Markdown/LaTeX, con HTML
-  desactivado y sanitizado.
+- **XSS.** `statement_md` y `text_md` vienen de la base y pasan por
+  `src/richtext.ts` (ver "Texto enriquecido"): HTML desactivado en
+  markdown-it, lista blanca de DOMPurify y un fragmento de DOM, sin `innerHTML`.
 - **Nada de respuestas en el cliente.** La clave solo aparece en la respuesta de
   `answer` (y en B3 para posiciones cerradas). No se cachea ni se guarda.
 - **localStorage** guarda solo el id de la sesión activa. No guarda token
@@ -189,7 +191,7 @@ Manejo de errores del cliente de API:
 | --- | --- | --- |
 | 1 | Config, Supabase Auth, cliente de API tipado, login y cierre de sesión, guardia de rutas | Nada nuevo |
 | 2 | Inicio, crear sesión, pregunta con cronómetro, resultado, siguiente, recarga | B1 (sin B1: cronómetro con desfase posible, marcado) |
-| 3 | Resumen y ranking; Markdown/LaTeX; recursos (imágenes) | B2, B3, decisión de formato de `assets` |
+| 3 | Resumen y ranking; Markdown/LaTeX; recursos (imágenes) ✔ | B2, B3, figuras en la base |
 | 4 | Pulido móvil, estados de carga y errores, pruebas de accesibilidad | — |
 
 ## Decisiones
@@ -197,23 +199,54 @@ Manejo de errores del cliente de API:
 Tomadas:
 
 1. **B1, B2 y B3**: aprobadas e implementadas.
-2. **Texto plano** en los enunciados y opciones (fase 2). Markdown/LaTeX queda
-   para después, con HTML desactivado y sanitizado.
+2. ~~Texto plano~~ **Sustituida (2026-10-12/13):** el banco real trae LaTeX
+   (120 de las 427 activas), tablas (8) e imágenes (8). Markdown con KaTeX, HTML
+   desactivado, sanitizado por lista blanca, figuras desde un endpoint
+   autenticado y desplazamiento horizontal en fórmulas anchas (aprobado por
+   Antonio).
 3. **"Continuar sesión"** con el id guardado en el navegador (por dispositivo).
 4. **Sin recuperación de contraseña**: la cambia el administrador desde el
    panel. La pantalla de login lo indica.
 
 Abiertas:
 
-1. **Formato de `assets`**: la migración solo exige `status = 'available'`; no
-   define cómo se sirven las imágenes (URL, almacenamiento privado, firmadas).
-   Se cierra con el importador, sin revelar la clave resaltada. Hoy el cliente
-   recibe `assets` pero no los dibuja.
+1. ~~Formato de `assets`~~ **Cerrada:** `bytea` en PostgreSQL y endpoint
+   autenticado de FastAPI (ver "Texto enriquecido").
 2. Textos finales de la interfaz y pulido móvil (fase 4).
 3. **Lector de pantalla y móvil**: el recorrido ya se probó en un navegador de
    escritorio real; falta probarlo con lector de pantalla y en un teléfono.
 4. Si "Continuar" debe funcionar entre dispositivos, habría que añadir
    `GET /sessions?status=active`.
+
+## Texto enriquecido
+
+`src/richtext.ts`: `renderRich` (enunciado, bloques), `renderRichInline`
+(opciones, caben en un botón) y `hydrateFigures`.
+
+| Qué | Cómo |
+| --- | --- |
+| Markdown | `markdown-it` con `html: false`; sin enlaces, sin encabezados, sin bloques de código ni citas (una línea con sangría no es código). Negrita, cursiva, listas, tablas y saltos de línea. |
+| LaTeX | Regla propia: `$...$` y `$$...$$`. Un `$` suelto ("$50.000") queda como texto y un `$` precedido de barra invertida es literal. KaTeX con `trust: false` y `throwOnError: false`: una fórmula inválida se ve en rojo, no rompe la pantalla. |
+| Sanitizado | DOMPurify con lista blanca de etiquetas y atributos (HTML, MathML y los SVG que emite KaTeX); los estilos con `url()` o `expression` se eliminan. Devuelve un fragmento de DOM. |
+| Figuras | Solo se dibuja `![alt](assets/x.png)` si `assets/x.png` está en los `assets` de la pregunta y su estado es `available`; cualquier otra imagen se descarta. La `img` sale sin `src`; `hydrateFigures` pide el archivo a `GET /sessions/{id}/questions/{n}/assets/{name}` con el token y le pone un `blob:`. Se liberan al cambiar de pantalla. |
+| Móvil | Tablas y ecuaciones destacadas con `overflow-x: auto`; imágenes con `max-width: 100%`. |
+
+**Prueba con el banco real (2026-10-13).** Las 483 preguntas pasaron por el
+renderizador: 791 ecuaciones, 0 errores de KaTeX, 10 tablas, 14 de 14 figuras
+dibujadas, ninguna imagen en opciones y ningún `$` visible que no fuera dinero.
+
+**Prueba visual a 390 px** con el front y el backend reales sobre PostgreSQL
+local (Edge sin interfaz, `iframe` de 390 px): econometría 15 (ecuación
+destacada), 51 (tabla), 6 y 56 (figuras, una con dos gráficos), 18 (ecuación y
+opciones) y microeconomía 105 (`<` y `>` dentro de fórmulas). Las figuras
+cargaron por el endpoint autenticado. Con un `$$...$$` ancho el bloque se
+desplaza horizontalmente, sin señal visual de que hay más. No se probó en un
+teléfono real ni con lector de pantalla.
+
+**Límite conocido.** KaTeX emite MathML mal formado para algunas expresiones
+(p. ej. una flecha con una letra encima); DOMPurify descarta ese subárbol del
+MathML. La versión visual queda intacta; solo se pierde esa parte para lectores
+de pantalla.
 
 ## Notas de implementación
 

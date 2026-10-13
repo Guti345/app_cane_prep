@@ -16,6 +16,12 @@ export function renderPlayScreen(
 ): () => void {
   let stopTimer: () => void = () => {};
   let disposed = false;
+  // Figuras de la pregunta en pantalla: URLs locales (blob:) que se liberan al cambiar de pantalla.
+  let figureUrls: string[] = [];
+  const releaseFigures = (): void => {
+    for (const url of figureUrls) URL.revokeObjectURL(url);
+    figureUrls = [];
+  };
 
   const controller = new PlayController(
     deps.api,
@@ -26,6 +32,7 @@ export function renderPlayScreen(
   );
 
   function show(state: PlayState): void {
+    if (state.kind !== "submitting") releaseFigures();
     switch (state.kind) {
       case "loading":
         stopTimer();
@@ -42,6 +49,17 @@ export function renderPlayScreen(
           question: state.question,
           offsetMs: state.offsetMs,
           now,
+          loadFigure: async (ref) => {
+            const blob = await deps.api.figure(
+              state.session.id,
+              state.question.position,
+              ref.replace(/^assets\//, ""),
+            );
+            if (disposed) throw new Error("pantalla cerrada");
+            const url = URL.createObjectURL(blob);
+            figureUrls.push(url);
+            return url;
+          },
           onAnswer: (option) => void controller.submit(option),
           onAbandon: () => void controller.abandon(),
         });
@@ -101,5 +119,6 @@ export function renderPlayScreen(
   return () => {
     disposed = true;
     stopTimer();
+    releaseFigures();
   };
 }

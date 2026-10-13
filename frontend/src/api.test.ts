@@ -152,3 +152,43 @@ describe("checkHealth", () => {
     expect(result).toMatchObject({ ok: false });
   });
 });
+
+describe("figure", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+
+  it("pide la figura de la posición con el token del usuario y devuelve el blob", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(PNG, { status: 200, headers: { "Content-Type": "image/png" } }),
+    );
+    const api = clientWith(fetchImpl as unknown as typeof fetch);
+
+    const blob = await api.figure("sesion 1", 2, "cane-2026-econometria-006-fig-01.png");
+
+    expect(blob.type).toBe("image/png");
+    expect(blob.size).toBe(4);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("http://localhost:8000/sessions/sesion%201/questions/2/assets/cane-2026-econometria-006-fig-01.png");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer token-de-prueba");
+  });
+
+  it("una figura inexistente (404) es un error HTTP", async () => {
+    const api = clientWith((async () => jsonResponse({ detail: "Figura no encontrada" }, 404)) as unknown as typeof fetch);
+
+    await expect(api.figure("s", 1, "x.png")).rejects.toMatchObject({ status: 404, kind: "http" });
+  });
+
+  it("rechaza una respuesta que no es una imagen", async () => {
+    const html = new Response("<script>alert(1)</script>", { status: 200, headers: { "Content-Type": "text/html" } });
+    const api = clientWith((async () => html) as unknown as typeof fetch);
+
+    await expect(api.figure("s", 1, "x.png")).rejects.toMatchObject({ kind: "invalid" });
+  });
+
+  it("sin sesión iniciada no hace ninguna petición", async () => {
+    const fetchImpl = vi.fn();
+    const api = clientWith(fetchImpl as unknown as typeof fetch, null);
+
+    await expect(api.figure("s", 1, "x.png")).rejects.toBeInstanceOf(ApiError);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});

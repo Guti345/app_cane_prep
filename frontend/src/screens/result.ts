@@ -1,4 +1,5 @@
 import { h } from "../dom";
+import { renderRichInline } from "../richtext";
 import type { Attempt, OptionLabel, Question } from "../types";
 import { card, formatSeconds } from "./layout";
 
@@ -9,10 +10,11 @@ export interface ResultViewProps {
   onNext(): void;
 }
 
-function optionText(question: Question, label: OptionLabel | null): string {
-  if (label === null) return "sin respuesta";
+function optionContent(question: Question, label: OptionLabel | null): Node {
+  if (label === null) return document.createTextNode("sin respuesta");
   const option = question.options.find((o) => o.label === label);
-  return option ? `${label}. ${option.text_md}` : label;
+  if (!option) return document.createTextNode(label);
+  return h("span", { class: "rich" }, `${label}. `, renderRichInline(option.text_md));
 }
 
 export function renderResult(container: HTMLElement, props: ResultViewProps): void {
@@ -41,9 +43,9 @@ export function renderResult(container: HTMLElement, props: ResultViewProps): vo
           "dl",
           { class: "facts" },
           h("dt", null, "Tu respuesta"),
-          h("dd", null, optionText(question, attempt.selected_option)),
+          h("dd", null, optionContent(question, attempt.selected_option)),
           h("dt", null, "Respuesta correcta"),
-          h("dd", null, optionText(question, attempt.correct_option)),
+          h("dd", null, optionContent(question, attempt.correct_option)),
           h("dt", null, "Tiempo usado"),
           h("dd", null, formatSeconds(attempt.time_used_ms)),
         ),

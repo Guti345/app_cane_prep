@@ -31,6 +31,7 @@ from app.domain import (
     NothingPending,
     Option,
     OptionLabel,
+    QuestionAsset,
     QuestionNotIssued,
     RankingRow,
     SessionClosed,
@@ -102,6 +103,14 @@ _ATTEMPTS_OF_SESSION_SQL = """
     JOIN public.question_keys k ON k.question_id = sq.question_id
     WHERE a.session_id = %s
     ORDER BY a.position
+"""
+
+_ASSET_SQL = """
+    SELECT a.ref, a.mime_type, a.sha256, a.data
+    FROM public.session_questions sq
+    JOIN public.question_assets a ON a.question_id = sq.question_id
+    WHERE sq.session_id = %s AND sq.position = %s AND a.ref = %s
+      AND sq.issued_at IS NOT NULL
 """
 
 _FINISHED = object()
@@ -211,6 +220,20 @@ class PostgresGameRepository:
             return self._read_state(conn, session_id)
 
     # --- resultados y ranking -------------------------------------------
+    def get_question_asset(
+        self, session_id: UUID, position: int, ref: str
+    ) -> QuestionAsset | None:
+        with self._tx() as conn:
+            row = conn.execute(_ASSET_SQL, (session_id, position, ref)).fetchone()
+        if row is None:
+            return None
+        return QuestionAsset(
+            ref=row["ref"],
+            mime_type=row["mime_type"],
+            sha256=row["sha256"],
+            data=bytes(row["data"]),
+        )
+
     def list_attempts(self, session_id: UUID) -> list[Attempt]:
         with self._tx() as conn:
             rows = conn.execute(_ATTEMPTS_OF_SESSION_SQL, (session_id,)).fetchall()
