@@ -5,6 +5,7 @@ import type { ApiClient } from "../api";
 import type { Deps } from "../deps";
 import type { AuthService, SignInResult } from "../supabase";
 import type { Attempt, Question, RankingRow, Session } from "../types";
+import { navBar } from "./layout";
 import { renderLogin } from "./login";
 import { renderQuestion } from "./question";
 import { positionLabel, renderRankingTable } from "./ranking";
@@ -311,7 +312,7 @@ describe("pantalla de resultado", () => {
     return { container, onNext };
   }
 
-  it("muestra la respuesta elegida, la correcta y el tiempo", () => {
+  it("la revisión muestra la elegida y la correcta, y el banner el tiempo", () => {
     const { container } = render(attempt());
 
     expect(container.querySelector(".banner")?.textContent).toContain("Incorrecto");
@@ -325,7 +326,7 @@ describe("pantalla de resultado", () => {
       .toContain("¡Correcto!");
     const timeout = render(attempt({ selected_option: null, timed_out: true, time_used_ms: 90_000 })).container;
     expect(timeout.querySelector(".banner")?.textContent).toContain("Se acabó el tiempo");
-    expect(timeout.textContent).toContain("sin respuesta");
+    expect(timeout.textContent).toContain("Sin respuesta");
   });
 
   it("muestra la referencia del PDF (área + número), no la posición ni ningún id", () => {
@@ -400,10 +401,43 @@ describe("pantalla de resultado", () => {
     expect(container.querySelector('.review-option[data-label="B"] .katex')).not.toBeNull();
   });
 
-  it("las etiquetas de los datos van apiladas (clase 'stacked')", () => {
+  it("ya no hay caja intermedia ni botón antes de la revisión: un único botón, al final", () => {
     const { container } = render(attempt());
 
-    expect(container.querySelector("dl.facts.stacked")).not.toBeNull();
+    expect(container.querySelector("dl.facts")).toBeNull();
+    expect(container.textContent).not.toContain("Tiempo usado");
+    const buttons = container.querySelectorAll("button");
+    expect(buttons).toHaveLength(1);
+    const main = container.querySelector("main")!;
+    expect(main.lastElementChild).toBe(buttons[0]); // después de la revisión
+    expect(container.querySelector(".review")!.compareDocumentPosition(buttons[0]!)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("el tiempo usado va en una línea pequeña dentro del banner", () => {
+    const { container } = render(attempt({ time_used_ms: 12_340 }));
+
+    expect(container.querySelector(".banner .banner-detail")?.textContent).toBe("Tiempo: 12,3 s");
+  });
+
+  it("con tiempo agotado: banner claro, sin respuesta, la correcta marcada y un camino para seguir", () => {
+    const { container } = render(
+      attempt({ selected_option: null, is_correct: false, timed_out: true, time_used_ms: 90_000 }),
+    );
+
+    expect(container.querySelector(".banner.timeout .banner-title")?.textContent).toContain("Se acabó el tiempo");
+    expect(container.querySelector(".banner-detail")?.textContent).toBe("Sin respuesta · Tiempo: 90,0 s");
+    expect(container.querySelector(".review-option.chosen")).toBeNull();
+    expect(container.querySelectorAll(".review-option.correct")).toHaveLength(1);
+    expect(container.querySelector(".review-option.correct")?.textContent).toContain("✓ Correcta");
+    expect(container.querySelector("button")?.textContent).toBe("Siguiente pregunta");
+  });
+
+  it("en la última pregunta el único botón conserva su texto ('Ver resumen')", () => {
+    const { container } = render(attempt(), true);
+
+    expect(container.querySelectorAll("button")).toHaveLength(1);
+    expect(container.querySelector("button")?.textContent).toBe("Ver resumen");
   });
 
   it("el botón cambia en la última pregunta y avanza al pulsarlo", () => {
@@ -414,6 +448,39 @@ describe("pantalla de resultado", () => {
     expect(last.container.querySelector("button")?.textContent).toBe("Ver resumen");
     click(last.container.querySelector("button"));
     expect(last.onNext).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- logo -------------------------------------------------------------------------------------
+
+describe("logo del CANE", () => {
+  it("el encabezado muestra el logo con nombre accesible y sin texto duplicado", () => {
+    const header = navBar(deps(vi.fn()), "home");
+    const logo = header.querySelector(".brand img.brand-logo") as HTMLImageElement | null;
+
+    expect(logo).not.toBeNull();
+    expect(logo?.getAttribute("alt")).toBe("CANE Prep");
+    expect(logo?.getAttribute("src")).toMatch(/logo_cane.*\.png$/);
+    expect(header.querySelector(".brand")?.textContent).toBe(""); // el texto visible ya no está
+    expect(header.querySelector("nav")?.textContent).not.toContain("CANE Prep");
+  });
+
+  it("el logo no se deforma: solo altura fija por CSS, ancho en automático", () => {
+    const logo = navBar(deps(vi.fn()), "home").querySelector("img.brand-logo") as HTMLImageElement;
+
+    expect(logo.getAttribute("width")).toBe("2172");
+    expect(logo.getAttribute("height")).toBe("724"); // proporción 3:1 reservada; la altura real la fija el CSS
+    expect(logo.getAttribute("style")).toBeNull();
+  });
+
+  it("el login usa el logo como título (h1), con el mismo nombre accesible", () => {
+    const container = document.createElement("div");
+    renderLogin(container, deps(vi.fn()));
+    const h1 = container.querySelector("h1")!;
+
+    expect(h1.querySelector("img")?.getAttribute("alt")).toBe("CANE Prep");
+    expect(h1.textContent).toBe("");
+    expect(h1.getAttribute("class")).toContain("login-brand");
   });
 });
 

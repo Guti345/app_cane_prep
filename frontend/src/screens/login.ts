@@ -1,7 +1,7 @@
 import { checkHealth } from "../api";
 import type { Deps } from "../deps";
 import { h } from "../dom";
-import { card } from "./layout";
+import { brandLogo, card } from "./layout";
 
 /** Pantalla de acceso. Sin registro: las cuentas las crea el administrador. */
 export function renderLogin(container: HTMLElement, deps: Deps, notice?: string): () => void {
@@ -73,7 +73,8 @@ export function renderLogin(container: HTMLElement, deps: Deps, notice?: string)
     h(
       "main",
       { class: "shell narrow" },
-      h("h1", null, "CANE Prep"),
+      // El título es la marca: el logo, con el mismo nombre accesible "CANE Prep".
+      h("h1", { class: "login-brand" }, brandLogo("login")),
       h("p", { class: "lead" }, "Práctica para el concurso. Inicia sesión con tu cuenta."),
       notice ? h("p", { class: "notice" }, notice) : null,
       card(form),

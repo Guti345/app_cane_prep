@@ -1,7 +1,7 @@
 import { h } from "../dom";
 import { hydrateFigures, renderRich, renderRichInline, type FigureLoader } from "../richtext";
-import type { Attempt, OptionLabel, Question, QuestionOption } from "../types";
-import { card, formatSeconds, sourceReference } from "./layout";
+import type { Attempt, Question, QuestionOption } from "../types";
+import { formatSeconds, sourceReference } from "./layout";
 
 export interface ResultViewProps {
   question: Question;
@@ -10,13 +10,6 @@ export interface ResultViewProps {
   onNext(): void;
   /** Obtiene una figura (blob:) por su ref; sin él, las figuras no se cargan. */
   loadFigure?: FigureLoader;
-}
-
-function optionContent(question: Question, label: OptionLabel | null): Node {
-  if (label === null) return document.createTextNode("sin respuesta");
-  const option = question.options.find((o) => o.label === label);
-  if (!option) return document.createTextNode(label);
-  return h("span", { class: "rich" }, `${label}. `, renderRichInline(option.text_md));
 }
 
 /** Una opción de la revisión, con marcas en texto (no solo color) de la elegida y la correcta. */
@@ -50,13 +43,16 @@ export function renderResult(container: HTMLElement, props: ResultViewProps): vo
       ? "✓ ¡Correcto!"
       : "✗ Incorrecto";
 
-  const next = (): HTMLButtonElement =>
-    h(
-      "button",
-      { type: "button", class: "primary", onclick: () => props.onNext() },
-      props.isLast ? "Ver resumen" : "Siguiente pregunta",
-    );
-  const top = next();
+  // El tiempo usado va dentro del banner, en una línea pequeña. Con tiempo agotado el tiempo es
+  // siempre el límite (90 s), así que se muestra junto a "sin respuesta".
+  const time = `Tiempo: ${formatSeconds(attempt.time_used_ms)}`;
+  const detail = attempt.timed_out ? `Sin respuesta · ${time}` : time;
+
+  const next = h(
+    "button",
+    { type: "button", class: "primary", onclick: () => props.onNext() },
+    props.isLast ? "Ver resumen" : "Siguiente pregunta",
+  );
 
   const statement = h(
     "div",
@@ -70,20 +66,12 @@ export function renderResult(container: HTMLElement, props: ResultViewProps): vo
       "main",
       { class: "shell" },
       h("p", { class: "muted" }, `Pregunta ${question.position}`),
-      h("div", { class: `banner ${state}`, role: "status" }, title),
-      card(
-        h(
-          "dl",
-          { class: "facts stacked" },
-          h("dt", null, "Tu respuesta"),
-          h("dd", null, optionContent(question, attempt.selected_option)),
-          h("dt", null, "Respuesta correcta"),
-          h("dd", null, optionContent(question, attempt.correct_option)),
-          h("dt", null, "Tiempo usado"),
-          h("dd", null, formatSeconds(attempt.time_used_ms)),
-        ),
+      h(
+        "div",
+        { class: `banner ${state}`, role: "status" },
+        h("span", { class: "banner-title" }, title),
+        h("span", { class: "banner-detail" }, detail),
       ),
-      top,
       h(
         "section",
         { class: "card review", "aria-labelledby": "review-title" },
@@ -101,9 +89,9 @@ export function renderResult(container: HTMLElement, props: ResultViewProps): vo
           ...question.options.map((option) => reviewOption(option, attempt)),
         ),
       ),
-      next(),
+      next,
     ),
   );
   // Sin desplazar: la revisión puede ser larga y el aviso de arriba debe quedar a la vista.
-  top.focus({ preventScroll: true });
+  next.focus({ preventScroll: true });
 }

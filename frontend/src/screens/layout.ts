@@ -2,13 +2,28 @@ import { h, type Child } from "../dom";
 import { hrefFor } from "../router";
 import type { Deps } from "../deps";
 import { AREA_LABELS, type Area } from "../types";
+import logoUrl from "../../logo_cane.png";
+
+/**
+ * Logo del CANE. El archivo se usa tal cual (2172 x 724, proporción 3:1): solo se fija la
+ * altura y el ancho queda en automático. El nombre accesible es "CANE Prep".
+ */
+export function brandLogo(size: "header" | "login" = "header"): HTMLImageElement {
+  return h("img", {
+    class: `brand-logo ${size}`,
+    src: logoUrl,
+    alt: "CANE Prep",
+    width: 2172,
+    height: 724,
+  });
+}
 
 /** Barra superior con navegación y cierre de sesión. */
 export function navBar(deps: Deps, active: "home" | "ranking" | "none"): HTMLElement {
   return h(
     "header",
     { class: "topbar" },
-    h("span", { class: "brand" }, "CANE Prep"),
+    h("span", { class: "brand" }, brandLogo("header")),
     h(
       "nav",
       { "aria-label": "Principal" },

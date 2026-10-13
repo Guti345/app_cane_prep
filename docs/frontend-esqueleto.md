@@ -221,9 +221,12 @@ Abiertas:
 
 ## Revisión, referencias y colores (2026-10-13)
 
-- **Resultado.** Etiquetas apiladas en celular (`dl.facts.stacked`); debajo, la revisión de la
-  pregunta: referencia del PDF, enunciado con figuras y tablas (mismo renderizado seguro) y las
-  opciones con la elegida y la correcta marcadas **con texto y símbolo**, no solo con color.
+- **Resultado.** Banner (correcto, incorrecto o tiempo agotado) con el tiempo usado en una línea
+  pequeña; debajo, la revisión de la pregunta: referencia del PDF, enunciado con figuras y tablas
+  (mismo renderizado seguro) y las opciones con la elegida y la correcta marcadas **con texto y
+  símbolo**, no solo con color. Un único botón al final ("Siguiente pregunta" o "Ver resumen").
+  Ya no hay caja intermedia con "Tu respuesta / Respuesta correcta / Tiempo usado": la revisión
+  muestra esa información. Con tiempo agotado el banner dice "Sin respuesta · Tiempo: 90,0 s".
   Todo sale de lo que el navegador ya tenía de esa pregunta; no hay datos nuevos antes de
   resolverla. La figura se vuelve a pedir al mismo endpoint autenticado.
 - **Referencia.** `area` + `source_number` (p. ej. «Microeconomía 57»), que vienen de
@@ -238,6 +241,15 @@ Abiertas:
   el resto usa roles (`--primary`, `--danger`, `--warm`…). Solo tema claro. Mostaza y naranja
   no sirven de texto sobre blanco (1,7 y 3,4:1): van de fondo con texto negro, de borde o de
   detalle. Correcto = índigo con ✓, incorrecto = vino con ✗, sin tiempo = mostaza con ⏱.
+
+## Logo (2026-10-13)
+
+`brandLogo()` en `screens/layout.ts` usa `frontend/logo_cane.png` tal cual (2172 x 724, 3:1):
+solo se fija la altura por CSS (32 px en el encabezado, 56 px en el login) y el ancho queda en
+automático; `alt="CANE Prep"`. En el login el logo es el `h1`. El archivo entregado es RGB **sin
+transparencia** (marco negro alrededor de su placa clara); el CSS lo recorta con `clip-path`
+(ver `.brand-logo`). Pesa 1,1 MB: si se reexporta con transparencia real y más liviano, se
+puede quitar el recorte.
 
 ## Texto enriquecido
 

@@ -132,8 +132,29 @@ a {
 }
 
 .topbar .brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Logo: altura fija y ancho automático (no se deforma). El archivo entregado es RGB sin
+   transparencia: trae un marco negro (15 px arriba, a la izquierda y a la derecha; 32 px
+   abajo, de 2172 x 724) alrededor de su placa clara redondeada (radio ~140 px). `clip-path`
+   recorta ese marco y redondea las esquinas sin tocar el archivo; con un PNG realmente
+   transparente y sin marco, se puede quitar esa línea. */
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 32px;
+  clip-path: inset(2.1% 0.7% 4.5% 0.7% round 6.5% / 20.7%);
+}
+
+.brand-logo.login {
+  height: 56px;
+}
+
+.login-brand {
+  margin: 0 0 0.75rem;
+  line-height: 0;
 }
 
 .topbar a,
@@ -260,6 +281,17 @@ form button[type="submit"] {
   font-weight: 700;
   font-size: 1.25rem;
   margin: 0.5rem 0 1rem;
+}
+
+.banner-title,
+.banner-detail {
+  display: block;
+}
+
+.banner-detail {
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  font-weight: 400;
 }
 
 .banner.ok {
@@ -451,23 +483,6 @@ form button[type="submit"] {
 .facts dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-/* En celular cada etiqueta va encima de su valor, a ancho completo. */
-@media (max-width: 40rem) {
-  .facts.stacked {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-
-  .facts.stacked dt {
-    margin-top: 0.75rem;
-    font-size: 0.875rem;
-  }
-
-  .facts.stacked dt:first-child {
-    margin-top: 0;
-  }
 }
 
 .table-scroll {
