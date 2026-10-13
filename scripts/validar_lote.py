@@ -1,9 +1,15 @@
 import json, sys, glob
+from pathlib import Path
 from jsonschema import validate
 
-# Uso: python validar_lote.py private-data/lotes/econometria_01.json
-# o varios a la vez: python validar_lote.py private-data/lotes/*.json
-esquema = json.load(open("private-data/esquema_preguntas_schema.json", encoding="utf-8"))
+# Uso, desde cualquier carpeta (con el entorno que tenga jsonschema, p. ej.
+# backend/.venv):
+#   python scripts/validar_lote.py private-data/lotes/econometria_01/econometria_01.json
+#   python scripts/validar_lote.py "private-data/lotes/*/*.json"      (comillas: lo expande el script)
+# Las rutas de los lotes se leen relativas a la carpeta desde donde se ejecuta;
+# el esquema se busca siempre en <raiz del repo>/private-data/.
+ESQUEMA = Path(__file__).resolve().parents[1] / "private-data" / "esquema_preguntas_schema.json"
+esquema = json.load(open(ESQUEMA, encoding="utf-8"))
 
 archivos = []
 for a in sys.argv[1:]:
