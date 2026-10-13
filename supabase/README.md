@@ -1,8 +1,8 @@
 # Supabase
 
 Aquí vive el esquema de PostgreSQL de CANE Prep. Hay **tres migraciones, ninguna
-aplicada al proyecto real**: las dos primeras están aplicadas en el proyecto de
-pruebas; la tercera, solo probada en PostgreSQL local.
+aplicada al proyecto real**: las tres están aplicadas en el proyecto de
+pruebas.
 
 ## Qué hay hoy
 
@@ -21,8 +21,8 @@ pruebas; la tercera, solo probada en PostgreSQL local.
   Aditiva; aplicada a `pruebas_cane` (2026-10-13). Ver
   [`docs/importador.md`](../docs/importador.md).
 - `migrations/20261013044404_question_assets.sql`: figuras de las preguntas
-  (`question_assets`, bytea) servidas por la API. Aditiva; solo probada en
-  PostgreSQL local.
+  (`question_assets`, bytea) servidas por la API. Aditiva; aplicada a
+  `pruebas_cane` (2026-10-13).
 
 ## Qué falta
 

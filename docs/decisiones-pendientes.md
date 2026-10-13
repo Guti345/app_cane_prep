@@ -50,8 +50,13 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
   entre compañeros del mismo equipo (404 en las cinco rutas de sesión) y entre
   equipos (ranking), y el front en un navegador real con CORS.
   Sigue sin comprobarse:
-  - **la Data API** con la clave publicable (que `question_keys` no devuelva
-    filas, sin token y con token);
+  - ~~la Data API~~ **comprobada el 2026-10-13 en `pruebas_cane`**: con la
+    clave anónima (solo `apikey` y con `Bearer`), `question_assets`,
+    `question_keys`, `questions`, `sessions`, `attempts`, `profiles` y
+    `practice_ranking` responden 401 y ninguna fila; con el rol
+    `authenticated` forzado en SQL, `question_assets`, `question_keys` y
+    `questions` dan `42501 permission denied`. Falta repetirlo con un
+    usuario real con sesión;
   - **qué cadena de conexión usará el backend**: la que usa el importador en
     pruebas es la del **pooler** (comprobado el 2026-10-13 por su host, sin
     mostrarla); la que se informó antes para el backend era *directa*
@@ -83,13 +88,22 @@ Nada de esto está terminado:
 
 - Auth, las cinco identidades del equipo y sus perfiles.
 - Banco de preguntas: importador probado en local y **cargado en `pruebas_cane`
-  (2026-10-13) sin figuras**: 483 preguntas (427 activas, 55 inactivas, 1
-  descartada). Faltan las figuras (migración `question_assets`, pendiente de
-  autorizar); en el proyecto real, nada (ver [`importador.md`](importador.md)).
-- **Markdown, LaTeX y figuras: implementados y probados en local** con el
-  banco real y a 390 px. Falta aplicar la migración `question_assets` a
-  `pruebas_cane`, importar y repetir la prueba allí; lector de pantalla y
-  teléfono real sin probar.
+  (2026-10-13)**: 483 preguntas (427 activas, 55 inactivas, 1 descartada) y
+  sus 14 figuras (migración `question_assets` aplicada); en el proyecto real,
+  nada (ver [`importador.md`](importador.md)).
+- **Markdown, LaTeX y figuras: implementados y probados** con el banco real y
+  a 390 px, en local y con el backend contra `pruebas_cane` (econometría 6:
+  la figura llega por el endpoint autenticado y se ve). Sin probar: teléfono
+  real y lector de pantalla.
+- **Deuda de accesibilidad:** DOMPurify descarta el MathML mal formado que KaTeX
+  emite para algunas expresiones (p. ej. una flecha con una letra encima); la
+  parte visual no cambia, pero un lector de pantalla pierde esa subexpresión.
+  No se debilitó el sanitizado; habría que corregir la expresión de origen o
+  añadir un texto alternativo.
+- **Pruebas omitidas (2):** `frontend/src/e2e.test.ts` recorre una sesión
+  completa contra un backend real y se omite salvo que existan
+  `CANE_E2E_API_URL` y `CANE_E2E_TOKEN` (necesita un token real de Supabase).
+  Son opcionales, no un fallo.
 - Las ecuaciones destacadas anchas se desplazan en horizontal sin señal visual
   de que hay más; revisar si hace falta una pista (degradado, flecha).
 - Una figura ancha (p. ej. econometría 56, dos gráficos) queda pequeña a 390 px;

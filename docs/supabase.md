@@ -67,8 +67,9 @@ aplicarla. Hay tres migraciones, en este orden:
    [`importador.md`](importador.md).
 3. `20261013044404_question_assets.sql` (2026-10-13): tabla
    `question_assets` (figuras en `bytea`, RLS activado, sin acceso para
-   `anon`/`authenticated`, congelada para versiones usadas). **Solo probada en
-   PostgreSQL local**; no aplicada a `pruebas_cane` ni al real.
+   `anon`/`authenticated`, congelada para versiones usadas). **Aplicada a
+   `pruebas_cane` el 2026-10-13** (CLI, carpeta temporal; `migration list`
+   coincide); no aplicada al real.
 
 ## Decisiones adoptadas
 

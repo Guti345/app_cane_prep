@@ -193,10 +193,14 @@ Git). El importador nunca la imprime y no la acepta como argumento.
    1 descartada, 483 filas en `question_keys`, las 427 activas con
    `verified_at` y `verified_basis`, ninguna no activa con `verified_at`, 15
    con `duplicate_of`. Segunda ejecución: 0 insertadas, 483 intactas.
-4. **Pendiente (requiere autorización):** aplicar
-   `20261013044404_question_assets.sql` de la misma forma y repetir el
-   importador sin `--sin-figuras`: debe subir 14 figuras (785 186 bytes) y
-   no tocar nada más.
+4. ✔ *(2026-10-13)* `20261013044404_question_assets.sql` aplicada de la misma
+   forma y figuras subidas con el importador sin `--sin-figuras` (ensayo y
+   carga): 14 filas en `question_assets` (785 186 bytes) de 13 preguntas
+   (8 activas con 1 figura; 5 no activas con 6, una con 2). Las 483
+   preguntas conservan el mismo hash por fila antes y después. Segunda
+   ejecución: 0 figuras nuevas, 14 existentes.
+   `--sin-figuras` no deja ningún marcador: `questions.assets` ya trae el
+   `ref` y el estado desde la carga; solo faltaban las filas de bytes.
 
 ## Pruebas
 

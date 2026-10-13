@@ -128,9 +128,8 @@ pruebas (2026-10-12).
   con autenticación por Supabase Auth y repositorio PostgreSQL.
 - Frontend con las seis pantallas (ver [`frontend-esqueleto.md`](frontend-esqueleto.md)),
   con Markdown, LaTeX (KaTeX) y figuras en enunciados y opciones.
-- Tres migraciones SQL, **ninguna aplicada al proyecto real**: el esquema y la
-  curación del banco (aplicadas en el proyecto de pruebas) y las figuras (solo
-  en local).
+- Tres migraciones SQL, **ninguna aplicada al proyecto real**; las tres están
+  aplicadas en el proyecto de pruebas.
 - Importador del banco (`scripts/importar_banco.py`, ver
   [`importador.md`](importador.md)), probado en local con las 483 preguntas.
 
