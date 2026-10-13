@@ -14,7 +14,9 @@ const env = (globalThis as { process?: { env: Record<string, string | undefined>
 const apiUrl = env.CANE_E2E_API_URL;
 const token = env.CANE_E2E_TOKEN;
 
-describe.skipIf(!apiUrl || !token)("recorrido contra un backend real", () => {
+// Contra servicios remotos cada petición pasa por Supabase Auth y la base: 5 s (el valor por
+// defecto) no alcanzan para ~14 peticiones en cadena.
+describe.skipIf(!apiUrl || !token)("recorrido contra un backend real", { timeout: 90_000 }, () => {
   const api = createApiClient(apiUrl ?? "", async () => token ?? null);
 
   it("sesión completa: pregunta, respuesta, resultado, resumen y ranking", async () => {

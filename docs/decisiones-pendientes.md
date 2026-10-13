@@ -55,8 +55,10 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
     `question_keys`, `questions`, `sessions`, `attempts`, `profiles` y
     `practice_ranking` responden 401 y ninguna fila; con el rol
     `authenticated` forzado en SQL, `question_assets`, `question_keys` y
-    `questions` dan `42501 permission denied`. Falta repetirlo con un
-    usuario real con sesión;
+    `questions` dan `42501 permission denied`. **Repetido con un JWT de
+    usuario real (2026-10-13):** las 9 tablas y vistas del repo y 5
+    escrituras inofensivas dan `403 / 42501` (ver
+    [`prueba-con-auth-real.md`](prueba-con-auth-real.md));
   - **qué cadena de conexión usará el backend**: la que usa el importador en
     pruebas es la del **pooler** (comprobado el 2026-10-13 por su host, sin
     mostrarla); la que se informó antes para el backend era *directa*
