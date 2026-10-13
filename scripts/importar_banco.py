@@ -446,6 +446,7 @@ class ApplyResult:
     assets_existing: int = 0
     assets_bytes: int = 0
     assets_changed: list[str] = field(default_factory=list)  # mismo ref, otro contenido
+    assets_skipped: int = 0  # figuras disponibles que no se subieron (--sin-figuras)
 
 
 def _content_signature(statement: str, options: Any, assets: Any, pages: Any) -> str:
@@ -468,6 +469,7 @@ def apply_plan(
     *,
     force_state: bool = False,
     dry_run: bool = False,
+    upload_figures: bool = True,
 ) -> ApplyResult:
     """Escribe el plan en UNA transacción. No hace commit: lo hace `conn.transaction()`.
 
@@ -535,7 +537,12 @@ def apply_plan(
                 cur.executemany(_INSERT_Q, new_q)
                 cur.executemany(_INSERT_K, new_k)
         result.inserted = len(new_q)
-        _upload_assets(conn, plan, question_ids, result)
+        if upload_figures:
+            _upload_assets(conn, plan, question_ids, result)
+        else:
+            result.assets_skipped = sum(
+                1 for p in plan for a in p.q["assets"] if a["status"] == "available"
+            )
 
         # Evalúa ya los triggers diferidos (clave, ready, D5) para fallar antes del commit.
         conn.execute("SET CONSTRAINTS ALL IMMEDIATE")
@@ -650,8 +657,11 @@ def render_report(
         for line in result.state_differs[:20]:
             w(f"    {line}")
         w(f"  forzadas: {len(result.forced)}")
-        w(f"  recursos: insertados {result.assets_inserted} ({result.assets_bytes} bytes), "
-          f"ya existentes {result.assets_existing}, con contenido distinto {len(result.assets_changed)}")
+        if result.assets_skipped:
+            w(f"  recursos: NO subidos ({result.assets_skipped} figuras disponibles; --sin-figuras)")
+        else:
+            w(f"  recursos: insertados {result.assets_inserted} ({result.assets_bytes} bytes), "
+              f"ya existentes {result.assets_existing}, con contenido distinto {len(result.assets_changed)}")
         for line in result.assets_changed:
             w(f"    {line}")
     return "\n".join(out)
@@ -670,6 +680,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--aplicar", action="store_true", help="carga en la base (por defecto: en seco)")
     ap.add_argument("--ensayo", action="store_true", help="con --aplicar: ejecuta y revierte")
     ap.add_argument("--remoto", action="store_true", help="permite un destino que no es localhost")
+    ap.add_argument("--sin-figuras", action="store_true",
+                    help="no sube las imágenes (para destinos sin la tabla question_assets)")
     ap.add_argument("--forzar-estado", action="store_true",
                     help="reaplica estado y verificación a preguntas ya existentes")
     ap.add_argument("--reporte", type=Path, help="guarda el informe en este archivo")
@@ -709,12 +721,30 @@ def main(argv: list[str] | None = None) -> int:
         from psycopg.rows import dict_row
 
         print(f"Destino: {target}. Transacción única{' (ensayo, se revierte)' if args.ensayo else ''}.")
-        with psycopg.connect(dsn, row_factory=dict_row, prepare_threshold=None, connect_timeout=15) as conn:
+        from psycopg.conninfo import conninfo_to_dict, make_conninfo
+
+        params = conninfo_to_dict(dsn)
+        params.setdefault("sslmode", "require")
+        try:
+            conn_ctx = psycopg.connect(make_conninfo(**params), row_factory=dict_row,
+                                       prepare_threshold=None, connect_timeout=15)
+        except psycopg.Error as exc:
+            # Sin el texto del error: puede incluir host y usuario del destino.
+            print(f"No se pudo conectar al destino ({type(exc).__name__}, "
+                  f"sqlstate {getattr(exc, 'sqlstate', None)}). Nada se modificó.")
+            return 1
+        with conn_ctx as conn:
             try:
                 result = apply_plan(conn, plan, curation["verified_basis"],
-                                    force_state=args.forzar_estado, dry_run=args.ensayo)
-            except (ImportPlanError, psycopg.Error) as exc:
+                                    force_state=args.forzar_estado, dry_run=args.ensayo,
+                                    upload_figures=not args.sin_figuras)
+            except ImportPlanError as exc:
                 print("FALLÓ y se revirtió todo:", str(exc).splitlines()[0][:300])
+                return 1
+            except psycopg.Error as exc:
+                # El mensaje de la base puede nombrar objetos; no incluye la cadena de conexión.
+                print(f"FALLÓ y se revirtió todo ({type(exc).__name__}):",
+                      str(exc).splitlines()[0][:200])
                 return 1
 
     report = render_report(plan, summary, diffs, batches=batches, pending=pending, result=result)

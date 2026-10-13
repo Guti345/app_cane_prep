@@ -56,6 +56,7 @@ backend\.venv\Scripts\python scripts\importar_banco.py --aplicar --remoto
 | `--aplicar` | Carga en la base de `IMPORT_DATABASE_URL`. |
 | `--ensayo` | Con `--aplicar`: hace todo, comprueba los triggers y **revierte**. |
 | `--remoto` | Permite un destino que no es `localhost`. |
+| `--sin-figuras` | No sube las imágenes (para destinos sin la tabla `question_assets`). El informe lo indica; una ejecución posterior sin la opción las completa. |
 | `--forzar-estado` | Reaplica estado, motivo y verificación a preguntas ya existentes. |
 | `--reporte RUTA` | Guarda el informe (usa `private-data/reportes/`, ignorado por Git). |
 
@@ -187,14 +188,19 @@ Git). El importador nunca la imprime y no la acepta como argumento.
    [`prueba-backend-datos.sql`](prueba-backend-datos.sql) con intentos →
    sesiones → preguntas (las claves caen en cascada). Perfiles y equipos de
    prueba intactos.
-3. Aplicar `20261013044404_question_assets.sql` de la misma forma.
-4. `--aplicar --remoto --ensayo`, y si el informe es el esperado (483 / 427 /
-   55 / 1 y 14 figuras), sin `--ensayo`.
-5. Repetir sin `--ensayo` para comprobar que no inserta nada.
+3. ✔ *(2026-10-13)* Importado **sin figuras** (`--aplicar --remoto --ensayo
+   --sin-figuras` y luego sin `--ensayo`): 483 / 427 activas / 55 inactivas /
+   1 descartada, 483 filas en `question_keys`, las 427 activas con
+   `verified_at` y `verified_basis`, ninguna no activa con `verified_at`, 15
+   con `duplicate_of`. Segunda ejecución: 0 insertadas, 483 intactas.
+4. **Pendiente (requiere autorización):** aplicar
+   `20261013044404_question_assets.sql` de la misma forma y repetir el
+   importador sin `--sin-figuras`: debe subir 14 figuras (785 186 bytes) y
+   no tocar nada más.
 
 ## Pruebas
 
-`backend/tests/integration/test_importador.py` (35 pruebas): clasificación,
+`backend/tests/integration/test_importador.py` (36 pruebas): clasificación,
 errores de curación, protección del destino, lectura de lotes, y carga contra
 PostgreSQL con las migraciones reales (activa sin `verified_at` rechazada,
 re-ejecución idempotente, cambios manuales respetados, `--forzar-estado`,

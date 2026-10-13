@@ -508,6 +508,16 @@ def test_rerunning_does_not_duplicate_or_replace_figures(loader, db, importer, t
     assert bytes(row["data"]) == PNG  # no se pisó
 
 
+def test_without_figures_mode_imports_the_questions_and_skips_the_upload(loader, db, importer, tmp_path):
+    result = loader(with_figure(importer, tmp_path), upload_figures=False)
+    assert (result.inserted, result.assets_inserted, result.assets_skipped) == (10, 0, 1)
+    assert stored_assets(db) == {}
+
+    # más tarde, con la tabla disponible, el mismo importador completa las figuras
+    later = loader(with_figure(importer, tmp_path))
+    assert (later.inserted, later.assets_inserted, later.assets_skipped) == (0, 1, 0)
+
+
 def test_pending_figures_are_not_uploaded_and_cannot_be_active(loader, db, importer):
     questions = bank()
     # econometria 5 (inactiva) con figura pendiente: solo es coherente como needs_review

@@ -52,10 +52,11 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
   Sigue sin comprobarse:
   - **la Data API** con la clave publicable (que `question_keys` no devuelva
     filas, sin token y con token);
-  - **qué cadena de conexión se usa**: se informó como *directa*. Confirmarlo
-    por el host (`db.<ref>.supabase.co` = directa; `…pooler.supabase.com` con
-    usuario `postgres.<ref>` = pooler). Para Render hay que probar la
-    **Session pooler**, porque la directa exige IPv6;
+  - **qué cadena de conexión usará el backend**: la que usa el importador en
+    pruebas es la del **pooler** (comprobado el 2026-10-13 por su host, sin
+    mostrarla); la que se informó antes para el backend era *directa*
+    (`db.<ref>.supabase.co`). Para Render hay que probar la **Session
+    pooler**, porque la directa exige IPv6;
   - lector de pantalla y navegador móvil.
 - **Concurrencia**: la prueba local usa PGlite (una conexión a la vez) y la
   corrida real fue secuencial, así que el `FOR UPDATE` y el pool no se
@@ -81,10 +82,10 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
 Nada de esto está terminado:
 
 - Auth, las cinco identidades del equipo y sus perfiles.
-- Banco de preguntas: **importador listo y probado en local** con las 483 (427
-  activas, 55 inactivas, 1 descartada). Falta aplicar la migración de curación
-  y cargar en `pruebas_cane`; en el proyecto real, nada (ver
-  [`importador.md`](importador.md)).
+- Banco de preguntas: importador probado en local y **cargado en `pruebas_cane`
+  (2026-10-13) sin figuras**: 483 preguntas (427 activas, 55 inactivas, 1
+  descartada). Faltan las figuras (migración `question_assets`, pendiente de
+  autorizar); en el proyecto real, nada (ver [`importador.md`](importador.md)).
 - **Markdown, LaTeX y figuras: implementados y probados en local** con el
   banco real y a 390 px. Falta aplicar la migración `question_assets` a
   `pruebas_cane`, importar y repetir la prueba allí; lector de pantalla y
