@@ -9,9 +9,11 @@ Cada prueba corre dentro de una transacción que se revierte al terminar.
 Instalación (una vez):  cd backend/tests/integration/pglite && npm install
 """
 
+import importlib.util
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -104,11 +106,14 @@ def pg_server() -> Iterator[int]:
 
 @pytest.fixture(scope="session")
 def pg_conn(pg_server: int) -> Iterator[psycopg.Connection]:
-    files = sorted(MIGRATIONS.glob("*_supabase_cane.sql"))
-    assert len(files) == 1, f"Se esperaba una migración supabase_cane, hay {len(files)}"
+    files = sorted(MIGRATIONS.glob("*.sql"))  # el nombre empieza por la marca de tiempo
+    assert files and files[0].name.endswith("_supabase_cane.sql"), (
+        f"La primera migración debe ser supabase_cane, hay {[f.name for f in files]}"
+    )
     conn = _connect(pg_server, autocommit=True)
     conn.execute(SUPABASE_STUBS)
-    conn.execute(files[0].read_text(encoding="utf-8"))  # la migración, sin modificar
+    for path in files:  # las migraciones reales, en orden y sin modificar
+        conn.execute(path.read_text(encoding="utf-8"))
     conn.autocommit = False
     yield conn
     conn.close()
@@ -205,3 +210,14 @@ class Seeder:
 @pytest.fixture
 def seed(db: psycopg.Connection) -> Seeder:
     return Seeder(db)
+
+
+@pytest.fixture(scope="session")
+def importer():
+    """El script scripts/importar_banco.py cargado como módulo (no es un paquete)."""
+    path = HERE.parents[2] / "scripts" / "importar_banco.py"
+    spec = importlib.util.spec_from_file_location("importar_banco", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["importar_banco"] = module  # los dataclasses resuelven tipos por aquí
+    spec.loader.exec_module(module)
+    return module

@@ -1,0 +1,69 @@
+{
+  "decision_id": "decision_bloque_ready_2026-10-12",
+  "descripcion": "Decisiones de Antonio del 2026-10-12 sobre el banco cane-2026. Solo identifica preguntas por area + numero; no contiene enunciados ni claves.",
+  "verified_basis": "decision_bloque_ready_2026-10-12",
+  "inactive": [
+    {
+      "reason": "sin_clave",
+      "questions": {
+        "econometria": [17, 81, 95],
+        "microeconomia": [114],
+        "historia_pensamiento": [61, 96]
+      }
+    },
+    {
+      "reason": "grafico_dudoso",
+      "questions": {
+        "econometria": [76, 77],
+        "macroeconomia": [37, 38, 61, 67, 69]
+      }
+    },
+    {
+      "reason": "texto_dudoso",
+      "questions": {
+        "econometria": [4, 10, 11, 14, 24, 25, 40, 41, 42, 49, 58, 70, 71, 72],
+        "microeconomia": [39, 49, 97, 106, 107, 112],
+        "macroeconomia": [32, 34, 49, 58, 66, 68],
+        "historia_pensamiento": [9, 65, 95, 112]
+      }
+    }
+  ],
+  "duplicates": [
+    {"area": "macroeconomia", "number": 35, "of": 26},
+    {"area": "macroeconomia", "number": 81, "of": 71},
+    {"area": "macroeconomia", "number": 83, "of": 73},
+    {"area": "macroeconomia", "number": 85, "of": 75},
+    {"area": "macroeconomia", "number": 67, "of": 61},
+    {"area": "macroeconomia", "number": 68, "of": 65},
+    {"area": "historia_pensamiento", "number": 84, "of": 74},
+    {"area": "historia_pensamiento", "number": 125, "of": 105},
+    {"area": "historia_pensamiento", "number": 126, "of": 106},
+    {"area": "historia_pensamiento", "number": 127, "of": 107},
+    {"area": "historia_pensamiento", "number": 128, "of": 108},
+    {"area": "historia_pensamiento", "number": 129, "of": 109},
+    {"area": "historia_pensamiento", "number": 130, "of": 110},
+    {"area": "historia_pensamiento", "number": 131, "of": 111}
+  ],
+  "force_active": [
+    {
+      "area": "microeconomia",
+      "number": 63,
+      "note": "Activada por decision de Antonio (2026-10-12): confirmo que su clave (A) es la correcta. La fuente repite enunciado y opciones en la 85 con clave B; la 85 queda descartada."
+    }
+  ],
+  "discarded": [
+    {"area": "microeconomia", "number": 85, "reason": "duplicada_de", "of": 63}
+  ],
+  "expected": {
+    "total": 483,
+    "active": 427,
+    "inactive": 55,
+    "discarded": 1,
+    "inactive_by_reason": {
+      "sin_clave": 6,
+      "grafico_dudoso": 7,
+      "texto_dudoso": 30,
+      "duplicada_de": 12
+    }
+  }
+}

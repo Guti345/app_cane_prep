@@ -127,9 +127,11 @@ pruebas (2026-10-12).
   con autenticación por Supabase Auth y repositorio PostgreSQL.
 - Frontend con las seis pantallas (ver [`frontend-esqueleto.md`](frontend-esqueleto.md)),
   texto plano en los enunciados.
-- Una migración SQL, probada en un proyecto de pruebas y **no aplicada al
-  proyecto real**.
+- Dos migraciones SQL, **ninguna aplicada al proyecto real**: el esquema
+  (probada en un proyecto de pruebas) y la curación del banco (solo en local).
+- Importador del banco (`scripts/importar_banco.py`, ver
+  [`importador.md`](importador.md)), probado en local con las 483 preguntas.
 
-No existen: banco de preguntas cargado, usuarios y perfiles del equipo,
+No existen: banco de preguntas cargado en Supabase, usuarios y perfiles del equipo,
 Markdown/LaTeX ni recursos (imágenes) en las preguntas, repetir sesión,
 despliegues.

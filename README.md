@@ -12,7 +12,8 @@ ranking, base de datos aplicada ni despliegues.
 | --- | --- |
 | Frontend (Vite + TypeScript) | Login, inicio, pregunta con cronómetro de 90 s, resultado, resumen y ranking, en texto plano. **Probado en local** (pruebas unitarias y un recorrido contra el backend local) **y en un navegador real contra `pruebas_cane`** (login, sesión con cronómetro, recarga, ranking, CORS); sin probar en móvil ni con lector de pantalla, y sin desplegar |
 | Backend (FastAPI) | `GET /health`, CORS y la API de juego (sesiones, preguntas, respuestas, intentos y ranking) con autenticación por Supabase Auth y repositorio PostgreSQL. **Probada en local** (PostgreSQL local y un Auth falso) **y contra el proyecto de pruebas** `pruebas_cane` con Auth y PostgreSQL reales; aislamiento entre compañeros y entre equipos verificado en Supabase real; sin desplegar y sin comprobar aún la Data API. Sin configuración, las rutas de juego responden 503 |
-| Supabase | `config.toml` y una migración **probada en un proyecto de pruebas (14/14) y no aplicada al proyecto real**. Guía en [`docs/supabase.md`](docs/supabase.md) |
+| Supabase | `config.toml` y dos migraciones, **ninguna aplicada al proyecto real**: el esquema (probada en un proyecto de pruebas, 14/14) y la curación del banco (solo probada en PostgreSQL local). Guía en [`docs/supabase.md`](docs/supabase.md) |
+| Banco de preguntas | Importador (`scripts/importar_banco.py`) probado en local con las 483 preguntas (427 activas); **sin cargar** en pruebas ni en el real. Markdown/LaTeX e imágenes sin implementar. Guía en [`docs/importador.md`](docs/importador.md) |
 | Netlify / Render | Sin configurar ni desplegar |
 
 ## Alcance
@@ -50,7 +51,8 @@ app_cane_prep/
     requirements.txt, requirements-dev.txt, .env.example
   supabase/
     config.toml        Configuración de la CLI (preexistente)
-    migrations/        Una migración: probada en pruebas, no aplicada al real
+    migrations/        Dos migraciones: ninguna aplicada al real
+  scripts/             importar_banco.py y su curación (lee private-data/)
   docs/                arquitectura, desarrollo local, decisiones pendientes
   private-data/        SOLO LOCAL e ignorada por Git (no existe al clonar)
 ```

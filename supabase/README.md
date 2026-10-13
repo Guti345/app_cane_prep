@@ -1,7 +1,8 @@
 # Supabase
 
-Aquí vive el esquema de PostgreSQL de CANE Prep. Hay **una migración, probada
-en un proyecto de pruebas y todavía no aplicada al proyecto real**.
+Aquí vive el esquema de PostgreSQL de CANE Prep. Hay **dos migraciones, ninguna
+aplicada al proyecto real**: la primera está probada en un proyecto de pruebas;
+la segunda, solo en PostgreSQL local.
 
 ## Qué hay hoy
 
@@ -15,6 +16,10 @@ en un proyecto de pruebas y todavía no aplicada al proyecto real**.
   vista del ranking, funciones en `cane_private`). Aplicada con la CLI y
   probada (14/14) en un proyecto de pruebas el 2026-10-11. Decisiones y
   cambios: [`docs/supabase.md`](../docs/supabase.md).
+- `migrations/20261013034510_curacion_banco.sql`: columnas de curación del
+  banco (estado descartada, motivo, duplicada de, base de verificación).
+  Aditiva; solo probada en PostgreSQL local. Ver
+  [`docs/importador.md`](../docs/importador.md).
 
 ## Qué falta
 
