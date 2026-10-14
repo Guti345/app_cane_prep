@@ -179,6 +179,32 @@ siguiente. No pegues contraseñas en el chat ni las pases con `-p`/`--password`.
 | 5 | `npx supabase db push --dry-run` | Lista qué se aplicaría, sin aplicarlo. Deben aparecer **solo** `20261009212148_supabase_cane.sql`, `20261013034510_curacion_banco.sql` y `20261013044404_question_assets.sql`, en ese orden. El aviso sobre `.gitkeep` es inofensivo. No prueba que el SQL se ejecute. | No |
 | 6 | `npx supabase db push` | **Aplica las migraciones** pendientes al proyecto vinculado y las registra en el historial. Pide confirmación. | **Sí** |
 
+### Qué hacen `link` y `db push --dry-run` (CLI 2.121.0, 2026-10-14)
+
+Verificado con la ayuda local del CLI y con un experimento **solo local** (un PostgreSQL de
+PGlite en 127.0.0.1 vía `--db-url`; ningún proyecto remoto):
+
+| Comando | Qué hace | ¿Cambia algo remoto? |
+| --- | --- | --- |
+| `supabase link --project-ref <ref>` | Asocia la carpeta de trabajo con el proyecto. Escribe estado local en `supabase/.temp/` de **esa** carpeta. Según la documentación, lee y valida la configuración de PostgREST de la plataforma; pide la contraseña de la base solo para validar ajustes y se puede dejar en blanco. Usa el token de `supabase login` | No según la documentación (lecturas) |
+| `supabase db push --dry-run` | Se **conecta** a la base ("Connecting to remote database..."), compara con el historial y **imprime** las migraciones que aplicaría, en orden. No ejecuta SQL de las migraciones ni crea `supabase_migrations` ni tablas (comprobado en local) | No aplica nada |
+| `supabase db push` | Aplica y registra en `supabase_migrations.schema_migrations` | **Sí** |
+
+- `db push` también actualiza los *vault secrets* de `config.toml` antes de migrar salvo con
+  `--skip-vault`. Este repo no define `[db.vault]`; aun así el dry-run se ejecuta con
+  `--skip-vault`.
+- `--include-seed` y `--include-roles` no se usan (`config.toml` tiene `[db.seed]`
+  habilitado: solo entra en juego con `--include-seed`).
+- Para no depender del vínculo antiguo de `supabase/.temp/` del repo, usa una carpeta de
+  trabajo nueva con `--workdir` (la ayuda indica que se usa tal cual, sin buscar en
+  directorios superiores).
+- La salida del dry-run, con la terminal interactiva, es texto en la salida de error
+  (`Would push these migrations:` con las 3 migraciones) y, sin terminal, un JSON
+  (`{"upToDate":false,"dryRun":true,"migrations":[...]}`).
+- **Sin verificar** (la documentación no lo dice): si cada migración se aplica en su propia
+  transacción y qué pasa si falla la segunda tras aplicar la primera. Por eso la guía manda
+  no repetir un `push` fallido sin inspeccionar.
+
 ### Cuándo detenerse
 
 Detente y describe el problema, sin improvisar, si en el paso 4 o 5:
