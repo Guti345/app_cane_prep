@@ -4,7 +4,8 @@ Solo para pruebas locales (por ejemplo desde un celular en la misma Wi-Fi). Toma
 - la conexión PostgreSQL de `private-data/importador.env` o de IMPORT_DATABASE_URL
   (ver docs/importador.md); no se imprime;
 - la URL de Supabase del proyecto de pruebas y su clave publicable (pública por
-  diseño) como `prueba_auth.py`.
+  diseño), con la misma configuración local verificada de `prueba_auth.py`
+  (`load_test_config`): no ejecuta `npx` ni consulta la CLI.
 
 Se niega a operar si la cadena apunta al proyecto real, y solo escucha en
 direcciones locales o de red privada (127.0.0.1, 192.168.x.x, 10.x.x.x, 172.16-31.x.x);
@@ -57,7 +58,7 @@ def check_bind_host(host: str) -> str:
     return host
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, config_root: Path | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
@@ -92,10 +93,12 @@ def main(argv: list[str] | None = None) -> int:
     origins = tuple(o.rstrip("/") for o in args.origin) or ("http://localhost:5173",)
     if any("*" in o for o in origins):
         raise SystemExit("RECHAZADO: CORS exige orígenes explícitos.")
+    print("Destino: pruebas_cane (proyecto de PRUEBAS). Comprobando la configuración pública...", flush=True)
+    cfg = pa.load_test_config(root=config_root)  # config_root: solo para pruebas
     settings = Settings(
         frontend_origins=origins,
-        supabase_url=pa.supabase_url(),
-        supabase_publishable_key=pa.publishable_key(),
+        supabase_url=cfg.url,
+        supabase_publishable_key=cfg.key,
         database_url=dsn,
     )
     print(f"Backend de PRUEBAS en http://{host}:{args.port}  (CORS: {', '.join(origins)})", flush=True)

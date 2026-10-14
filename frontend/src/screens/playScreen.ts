@@ -83,6 +83,49 @@ export function renderPlayScreen(
         });
         break;
 
+      case "unconfirmed": {
+        stopTimer();
+        const chosen = state.option ?? "sin respuesta";
+        const missing = state.saved === "missing";
+        container.replaceChildren(
+          navBar(deps, "none"),
+          h(
+            "main",
+            { class: "shell" },
+            card(
+              h(
+                "p",
+                { class: "notice error", role: "alert" },
+                missing
+                  ? "Tu respuesta no llegó al servidor y no quedó registrada."
+                  : "No pudimos confirmar si tu respuesta quedó registrada.",
+              ),
+              h(
+                "p",
+                { class: "muted" },
+                missing
+                  ? `Puedes reenviarla (${chosen}). El plazo lo controla el servidor: si ya venció, se registrará como sin respuesta.`
+                  : "Primero comprobamos qué guardó el servidor; no la reenviamos a ciegas.",
+              ),
+              missing
+                ? h(
+                    "button",
+                    { type: "button", class: "primary", onclick: () => void controller.resendAnswer() },
+                    "Reenviar mi respuesta",
+                  )
+                : h(
+                    "button",
+                    { type: "button", class: "primary", onclick: () => void controller.checkAnswer() },
+                    "Comprobar de nuevo",
+                  ),
+              " ",
+              h("a", { class: "button", href: hrefFor({ name: "home" }) }, "Ir al inicio"),
+            ),
+          ),
+        );
+        break;
+      }
+
       case "summary":
         stopTimer();
         deps.store.clear();

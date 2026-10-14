@@ -1,4 +1,4 @@
-import { checkHealth } from "../api";
+import { checkHealth, PATIENT_TIMEOUT_MS } from "../api";
 import type { Deps } from "../deps";
 import { h } from "../dom";
 import { brandLogo, card } from "./layout";
@@ -61,9 +61,12 @@ export function renderLogin(container: HTMLElement, deps: Deps, notice?: string)
       type: "button",
       class: "link",
       onclick: async () => {
-        status.textContent = "Comprobando…";
-        const result = await checkHealth(deps.apiUrl);
-        status.textContent = result.ok ? "El servidor responde correctamente." : result.message;
+        status.textContent =
+          "Comprobando… si el servidor estaba dormido puede tardar hasta un minuto.";
+        const result = await checkHealth(deps.apiUrl, undefined, PATIENT_TIMEOUT_MS);
+        status.textContent = result.ok
+          ? "El servidor responde correctamente (no comprueba la base de datos)."
+          : result.message;
       },
     },
     "Comprobar conexión con el servidor",

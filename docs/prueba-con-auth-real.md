@@ -23,14 +23,65 @@ backend\.venv\Scripts\python scripts\prueba_auth.py
   que hace `signInWithPassword` del navegador).
 - Guarda el token en `private-data/token_prueba.json` (ignorado por Git) y **no
   lo imprime**. Dura lo que dure el token (normalmente 1 hora).
-- La clave publicable (pública por diseño) la toma de `SUPABASE_PUBLISHABLE_KEY`
-  o de la CLI de Supabase (`projects api-keys`, que enmascara las secretas).
+- La **configuración pública** (URL del proyecto de pruebas + clave publicable, pública
+  por diseño) se reutiliza de un archivo local ignorado; **no** se consulta la CLI de
+  Supabase ni se ejecuta `npx` (ver "Configuración pública" abajo).
+- Al empezar dice el destino (`pruebas_cane`) y qué archivo usó, sin mostrar valores; si
+  falta configuración, **falla antes de pedir correo y contraseña**.
+- Cada espera de red está acotada (20 s para el login, 10 s para comprobar la clave) y
+  `Ctrl+C` termina limpiamente, sin dejar un token.
+- Antes de pedir las credenciales **retira el token anterior** (si había uno): así, si el
+  inicio de sesión falla o se cancela, no queda ningún token que se pueda confundir con su
+  resultado. Si falla la configuración (antes de pedir nada), no toca el token anterior.
+- Los errores solo muestran el estado HTTP y un código corto (p. ej. `invalid_credentials`),
+  nunca el cuerpo de la respuesta, cabeceras, claves ni el token.
 - Para borrarlo: `backend\.venv\Scripts\python scripts\prueba_auth.py --borrar`.
 
 **Qué usuario.** Cualquiera de los tres perfiles de prueba sirve. Para poder
 comprobar que una sesión **ajena** no entrega su figura, conviene *Segunda
 persona* (no es dueña de la sesión de prueba anterior, que es de *Persona de
 prueba*).
+
+### Configuración pública (URL + clave publicable)
+
+Se toma, en este orden, de la primera fuente que tenga la pareja **completa**:
+
+1. Variables de entorno `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` (o las `VITE_*`). Una
+   variable suelta se rechaza: una clave sola no demuestra a qué proyecto pertenece.
+2. `private-data/supabase_pruebas.env` (ignorado por Git), con `SUPABASE_URL` y
+   `SUPABASE_PUBLISHABLE_KEY`.
+3. `frontend/.env.local` y `frontend/.env` (`VITE_SUPABASE_URL` y
+   `VITE_SUPABASE_PUBLISHABLE_KEY`; `.env.local` pisa a `.env`, como en Vite).
+
+Reglas (todas fallan rápido, sin repetir el valor):
+
+- La URL debe ser **exactamente** `https://yqhtmrlwxgvxyiekzscb.supabase.co`; la del proyecto
+  real y cualquier otra se rechazan.
+- La clave debe ser publicable (`sb_publishable_...`) o una `anon` en JWT del proyecto de
+  pruebas; `sb_secret_...`, `service_role` y formatos desconocidos se rechazan.
+- Si el entorno y el archivo traen valores distintos, es un **conflicto** y se pide dejar una
+  sola fuente.
+- La clave se comprueba con Auth del propio proyecto de pruebas (`GET /auth/v1/settings`,
+  10 s): un 401/403 la rechaza. Un fallo de red o de tiempo solo avisa y continúa: el
+  inicio de sesión dirá si no corresponde.
+- Las variables privadas del backend (`DATABASE_URL`, etc.) nunca se leen ni se copian.
+
+Si falta la configuración, el mensaje indica qué escribir. Lo único que hay que completar es
+la clave publicable de **pruebas_cane**: panel del proyecto de pruebas → *Project Settings* →
+*API Keys* → *Publishable key*. La URL es fija y no es secreta:
+
+```
+SUPABASE_URL=https://yqhtmrlwxgvxyiekzscb.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<clave publicable de pruebas_cane>
+```
+
+La clave publicable no sustituye la contraseña ni el JWT: solo identifica el proyecto.
+
+**Opción explícita de CLI (no es el camino por defecto):**
+`backend\.venv\Scripts\python scripts\prueba_auth.py --clave-desde-cli` consulta la clave
+con `npx --no-install supabase projects api-keys`, sin instalar nada, sin entrada
+interactiva, con límite de 30 s, sin imprimir su salida y terminando solo su propio proceso
+si vence o se cancela. La clave obtenida pasa las mismas comprobaciones.
 
 ## 2. Backend local con Auth real y pruebas_cane
 
@@ -40,7 +91,9 @@ backend\.venv\Scripts\python scripts\backend_pruebas.py --port 8001 --solo-figur
 ```
 
 - Usa `SupabaseTokenVerifier` (valida cada token con Supabase Auth) y la base de
-  pruebas. La cadena sale de `private-data/importador.env` y no se imprime.
+  pruebas. La cadena sale de `private-data/importador.env` y no se imprime. La URL y la
+  clave publicable salen de la **misma configuración local verificada** de `prueba_auth.py`
+  (sin `npx`).
 - Solo escucha en `127.0.0.1`/`localhost` o en una dirección de red privada
   (192.168.x.x, 10.x.x.x, 172.16-31.x.x). Rechaza `0.0.0.0` y las públicas.
 - `--solo-figuras` es solo para pruebas: las sesiones eligen entre las preguntas

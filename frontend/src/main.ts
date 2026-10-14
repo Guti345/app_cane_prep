@@ -4,6 +4,9 @@ import { mountApp } from "./app";
 import { createApiClient } from "./api";
 import { readConfig } from "./config";
 import { h } from "./dom";
+import { createPendingCreateStore } from "./pendingCreate";
+import { currentRoute } from "./router";
+import { createServerNotice } from "./serverNotice";
 import { createActiveSessionStore } from "./store";
 import { createAuthService } from "./supabase";
 
@@ -33,11 +36,18 @@ if (!result.ok) {
 } else {
   const { config } = result;
   const auth = createAuthService(config.supabaseUrl, config.supabasePublishableKey);
-  const api = createApiClient(config.apiUrl, () => auth.getAccessToken());
+  const notice = createServerNotice(root);
+  const api = createApiClient(config.apiUrl, () => auth.getAccessToken(), undefined, {
+    onWaiting: notice.onWaiting,
+  });
+  // Al abrir la app, salvo que se retome una pregunta cuyo plazo ya corre: ahí no se
+  // antepone ninguna espera; la propia petición de recuperación despierta al servidor.
+  if (currentRoute().name !== "play") void api.warmUp();
   void mountApp(root, {
     auth,
     api,
     store: createActiveSessionStore(),
+    pendingCreate: createPendingCreateStore(),
     apiUrl: config.apiUrl,
   });
 }

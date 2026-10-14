@@ -9,7 +9,7 @@ paso remoto**. Nada de CANE Prep se ha aplicado al proyecto real.
 | --- | --- |
 | **Preparado localmente** | Contrato de variables de entorno (`.env.example` de frontend y backend), lectura opcional de `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `DATABASE_URL` en `backend/app/config.py`. La migración `supabase/migrations/20261009212148_supabase_cane.sql` con las decisiones D1, D2, D5, T1 y T4; los scripts [`prueba-migracion.sql`](prueba-migracion.sql) y [`limpiar-proyecto-pruebas.sql`](limpiar-proyecto-pruebas.sql). |
 | **Probado** | La versión actual de la migración se aplicó con la CLI (`db push`, `migration list` con local y remoto coincidiendo) en el proyecto de pruebas `pruebas_cane`, y `prueba-migracion.sql` dio **14/14 `OK`** en el SQL Editor (resultado informado por el usuario, 2026-10-11). Es el mismo archivo que está en el repo (mismo hash SHA-256 que la copia usada en la prueba); después solo cambió el encabezado de comentarios. |
-| **Aplicado remotamente** | Proyecto real: **nada**. Proyecto de pruebas: la versión actual. |
+| **Aplicado remotamente** | Proyecto de pruebas: la versión actual. Proyecto real: según las notas y el panel ("No migrations") no hay migraciones; **el contenido real no está inventariado** (ver [`estado-sesion.md`](estado-sesion.md)). |
 
 **Qué cubre la prueba:** RLS y permisos, límite de cinco miembros, plazo fijo
 de 90 s, activación con `verified_at`, evaluación por el servidor, doble envío,
@@ -31,13 +31,14 @@ El SQL original queda intacto como referencia en
 
 | Variable | Dónde | Visibilidad | Uso hoy |
 | --- | --- | --- | --- |
-| `VITE_API_URL` | frontend | pública | Consulta `/health` |
-| `VITE_SUPABASE_URL` | frontend | pública | Ninguno (Auth sin implementar) |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | frontend | pública | Ninguno |
+| `VITE_API_URL` | frontend | pública | URL del backend: todas las llamadas a la API y `/health` |
+| `VITE_SUPABASE_URL` | frontend | pública | Inicio de sesión con Supabase Auth (obligatoria) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | frontend | pública | Inicio de sesión con Supabase Auth (obligatoria) |
 | `FRONTEND_ORIGIN` | backend | configuración | CORS |
 | `SUPABASE_URL` | backend | configuración | Validar el token del usuario (`/auth/v1/user`) |
 | `SUPABASE_PUBLISHABLE_KEY` | backend | configuración | Cabecera `apikey` de esa llamada |
 | `DATABASE_URL` | backend | **secreta** | Acceso a PostgreSQL; `/health` no la usa. Sin ella, las rutas de juego responden 503 |
+| `ENABLE_API_DOCS` | backend | configuración | Opcional. Solo con `1`/`true` se publican `/docs`, `/redoc` y `/openapi.json`; por defecto están apagadas |
 
 - Los valores reales van en `frontend/.env` y en el entorno del backend (Render
   más adelante). Ambos están ignorados por Git; solo se versiona `.env.example`.

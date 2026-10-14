@@ -6,8 +6,10 @@ transacción**. Las decisiones están en
 [`scripts/curacion_2026-10-12.json`](../scripts/curacion_2026-10-12.json):
 identifican preguntas por **área + número** y no contienen enunciados ni claves.
 
-**Estado:** probado con el banco real (483 preguntas) en un PostgreSQL local.
-No se ha ejecutado contra `pruebas_cane` ni contra el proyecto real.
+**Estado:** probado con el banco real (483 preguntas) en un PostgreSQL local y
+cargado en `pruebas_cane` (2026-10-13). Contra el proyecto real solo se puede
+ejecutar con el opt-in específico de la sección "Proyecto real"; no se ha
+ejecutado.
 
 ## Qué garantiza
 
@@ -18,7 +20,8 @@ No se ha ejecutado contra `pruebas_cane` ni contra el proyecto real.
 - Re-ejecutarlo **no cambia** el estado de preguntas existentes: solo inserta
   las nuevas y avisa de las que difieren.
 - Todo o nada: si algo falla, no queda nada a medias.
-- Se niega a operar contra el proyecto real, con o sin `--remoto`.
+- Se niega a operar contra el proyecto real, con o sin `--remoto`, salvo con el
+  opt-in específico `--remoto --destino-real <referencia>` (ver "Proyecto real").
 - Si las cuentas no cuadran con las esperadas del archivo de curación, no
   carga nada.
 
@@ -56,6 +59,7 @@ backend\.venv\Scripts\python scripts\importar_banco.py --aplicar --remoto
 | `--aplicar` | Carga en la base de `IMPORT_DATABASE_URL`. |
 | `--ensayo` | Con `--aplicar`: hace todo, comprueba los triggers y **revierte**. |
 | `--remoto` | Permite un destino que no es `localhost`. |
+| `--destino-real REF` | Opt-in para el proyecto real. `REF` debe ser la referencia del proyecto real y coincidir **exactamente** con la que lleva la cadena de conexión. Exige también `--remoto`. |
 | `--sin-figuras` | No sube las imágenes (para destinos sin la tabla `question_assets`). El informe lo indica; una ejecución posterior sin la opción las completa. |
 | `--forzar-estado` | Reaplica estado, motivo y verificación a preguntas ya existentes. |
 | `--reporte RUTA` | Guarda el informe (usa `private-data/reportes/`, ignorado por Git). |
@@ -172,6 +176,46 @@ transacción que las preguntas. Se sirven por un endpoint autenticado de FastAPI
   pregunta ya usada en sesiones es inmutable, como su enunciado).
 - Con las 483 preguntas son 14 figuras (785 186 bytes); 8 pertenecen a
   preguntas activas.
+
+## Proyecto real
+
+El proyecto real **no se carga con el flujo normal**: el importador lo rechaza aunque
+se pase `--remoto`. Cargarlo exige el opt-in `--destino-real <referencia>`, que no es
+un "permitir producción" genérico: lleva la referencia y se comprueba contra la cadena.
+
+Cómo se identifica el destino (sin imprimir la cadena y sin aceptar coincidencias
+parciales; la forma de las cadenas es la que documenta Supabase):
+
+| Conexión | Dónde está la referencia |
+| --- | --- |
+| Directa | host `db.<referencia>.supabase.co` |
+| Session pooler / Transaction pooler | usuario `<rol>.<referencia>` (el host del pooler es compartido) |
+
+Se rechaza, con un mensaje sin la cadena, cuando:
+
+- falta `--remoto`, o `--destino-real` no es una referencia de proyecto real autorizada;
+- la cadena no nombra ningún proyecto (host ajeno, `localhost`, o la referencia solo
+  aparece en la contraseña, el nombre de la base o como parte de otro host);
+- el host y el usuario nombran proyectos distintos;
+- la referencia de la cadena no coincide con `--destino-real` (p. ej. es la de pruebas).
+
+No cambia nada más: sigue siendo una transacción, con `--ensayo` (rollback), sin
+reemplazar lo existente y con la comprobación de cantidades. Primero el ensayo y,
+solo si coincide con lo esperado, la carga:
+
+```powershell
+# La cadena del Session pooler del proyecto REAL va en la variable de entorno de ESTA
+# terminal (tecleada o pegada por ti; no se imprime, no va en el chat ni en un archivo versionado).
+$env:IMPORT_DATABASE_URL = "<cadena del Session pooler del proyecto real>"
+
+backend\.venv\Scripts\python scripts\importar_banco.py --aplicar --remoto --destino-real <referencia del proyecto real> --ensayo
+backend\.venv\Scripts\python scripts\importar_banco.py --aplicar --remoto --destino-real <referencia del proyecto real>
+```
+
+La variable de entorno tiene prioridad sobre `private-data/importador.env`, así que una
+cadena de pruebas guardada ahí no se usa por descuido; y si se usara, el opt-in la
+rechazaría por no coincidir. No uses `--forzar-estado` ni `--sin-figuras` para sortear
+diferencias: si las cuentas no cuadran, el importador no carga nada y hay que revisar.
 
 ## Cadena de conexión
 

@@ -61,8 +61,19 @@ describe("secretos y registros", () => {
     expect(offenders(/console\.(log|debug|info|warn|error)\(/)).toEqual([]);
   });
 
-  it("localStorage solo lo toca store.ts", () => {
-    expect(offenders(/localStorage|sessionStorage/, ["/src/store.ts"])).toEqual([]);
+  it("el almacenamiento del navegador solo lo tocan store.ts y pendingCreate.ts", () => {
+    expect(
+      offenders(/localStorage|sessionStorage/, ["/src/store.ts", "/src/pendingCreate.ts"]),
+    ).toEqual([]);
+  });
+
+  it("lo que esos dos guardan no incluye tokens ni respuestas", () => {
+    for (const [path, source] of production) {
+      if (!path.endsWith("/src/store.ts") && !path.endsWith("/src/pendingCreate.ts")) continue;
+      // Se ignoran los comentarios: ahí se explica justamente que NO se guarda un token.
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      expect(code, path).not.toMatch(/access_token|getAccessToken|correct_option|selected_option/);
+    }
   });
 
   it("solo se leen las tres variables públicas", () => {

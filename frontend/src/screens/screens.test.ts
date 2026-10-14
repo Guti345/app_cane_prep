@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiClient } from "../api";
 import type { Deps } from "../deps";
+import { createPendingCreateStore } from "../pendingCreate";
 import type { AuthService, SignInResult } from "../supabase";
 import type { Attempt, Question, RankingRow, Session } from "../types";
 import { navBar } from "./layout";
@@ -18,12 +19,14 @@ function deps(signIn: (e: string, p: string) => Promise<SignInResult>): Deps & {
     signIn,
     signOut: async () => {},
     getAccessToken: async () => null,
+    getUserId: async () => null,
     onSignedOut: () => () => {},
   };
   return {
     auth,
     api: {} as ApiClient,
     store: { get: () => null, set: () => {}, clear: () => {} },
+    pendingCreate: createPendingCreateStore(null),
     apiUrl: "http://localhost:8000",
     go: (route) => void went.push(route),
     signOut: async () => {},

@@ -253,3 +253,192 @@ describe("fallos", () => {
     expect(states.at(-1)).toMatchObject({ kind: "question" });
   });
 });
+
+describe("respuesta perdida (resultado incierto de POST /answer)", () => {
+  /** Una pregunta en curso; `answer` y `attempts` los define cada prueba. */
+  function playing(overrides: Partial<ApiClient>) {
+    const calls = { answer: 0, next: 0, attempts: 0, sent: [] as unknown[] };
+    const api = fakeApi({
+      getSession: async () => session({ question_count: 2 }),
+      nextQuestion: async () => {
+        calls.next += 1;
+        return question(1);
+      },
+      answer: async (_id, input) => {
+        calls.answer += 1;
+        calls.sent.push(input);
+        throw new ApiError(0, "network", "sin red");
+      },
+      attempts: async () => {
+        calls.attempts += 1;
+        return [];
+      },
+      ...overrides,
+    });
+    return { api, calls };
+  }
+
+  it("si el intento ya estaba guardado, muestra ese resultado sin reenviar ni emitir otra pregunta", async () => {
+    const { api, calls } = playing({ attempts: async () => [attempt(1, { selected_option: "B", is_correct: false })] });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("B");
+
+    expect(last()).toMatchObject({ kind: "result", isLast: false });
+    expect((last() as { attempt: Attempt }).attempt.selected_option).toBe("B");
+    expect(calls.answer).toBe(1); // nunca se reenvió solo
+    expect(calls.next).toBe(1); // ni se pidió otra pregunta
+  });
+
+  it("si no está guardado lo dice y permite reenviar la MISMA posición y opción, sin otro /next", async () => {
+    let saved = false;
+    const { api, calls } = playing({
+      answer: async (_id, input) => {
+        calls_answer_inc();
+        sent.push(input);
+        if (!saved) throw new ApiError(0, "timeout", "no respondió");
+        return attempt(1, { selected_option: "C" });
+      },
+      attempts: async () => [],
+    });
+    let n = 0;
+    const calls_answer_inc = () => { n += 1; };
+    const sent: unknown[] = [];
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("C");
+    expect(last()).toMatchObject({ kind: "unconfirmed", saved: "missing", option: "C" });
+
+    saved = true;
+    await controller.resendAnswer();
+
+    expect(last()).toMatchObject({ kind: "result" });
+    expect(n).toBe(2);
+    expect(sent).toEqual([
+      { position: 1, selected_option: "C" },
+      { position: 1, selected_option: "C" },
+    ]);
+    expect(calls.next).toBe(1); // el plazo es el de la pregunta ya emitida: no hay nueva emisión
+  });
+
+  it("un GET fallido NO equivale a 'no se guardó': no se ofrece reenviar y se puede volver a comprobar", async () => {
+    let attemptsWork = false;
+    const { api, calls } = playing({
+      attempts: async () => {
+        if (!attemptsWork) throw new ApiError(0, "network", "sin red");
+        return [attempt(1)];
+      },
+    });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("A");
+    expect(last()).toMatchObject({ kind: "unconfirmed", saved: "unknown" });
+
+    await controller.resendAnswer(); // no debe enviar nada
+    expect(calls.answer).toBe(1);
+
+    attemptsWork = true;
+    await controller.checkAnswer();
+
+    expect(last()).toMatchObject({ kind: "result" });
+    expect(calls.answer).toBe(1);
+  });
+
+  it("un 503 al responder se trata como incierto, no como 'no guardado'", async () => {
+    let asked = 0;
+    const { api } = playing({
+      answer: async () => {
+        throw new ApiError(503, "http", "Base de datos no disponible");
+      },
+      attempts: async () => {
+        asked += 1;
+        return [attempt(1)];
+      },
+    });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("A");
+
+    expect(last()).toMatchObject({ kind: "result" });
+    expect(asked).toBe(1);
+  });
+
+  it("un error definitivo (422) no dispara la resincronización", async () => {
+    let asked = 0;
+    const { api } = playing({
+      answer: async () => {
+        throw new ApiError(422, "http", "Opción inválida");
+      },
+      attempts: async () => {
+        asked += 1;
+        return [];
+      },
+    });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("A");
+
+    expect(last()).toMatchObject({ kind: "error", reason: "unexpected" });
+    expect(asked).toBe(0);
+  });
+
+  it("un vencimiento (opción nula) perdido se reenvía como sin respuesta; el servidor decide", async () => {
+    const sent: unknown[] = [];
+    let ok = false;
+    const { api } = playing({
+      answer: async (_id, input) => {
+        sent.push(input);
+        if (!ok) throw new ApiError(0, "network", "sin red");
+        return attempt(1, { selected_option: null, is_correct: false, timed_out: true, time_used_ms: 90000 });
+      },
+    });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit(null);
+    ok = true;
+    await controller.resendAnswer();
+
+    expect(sent).toEqual([
+      { position: 1, selected_option: null },
+      { position: 1, selected_option: null },
+    ]);
+    expect((last() as { attempt: Attempt }).attempt.timed_out).toBe(true);
+  });
+
+  it("un 401 al comprobar cierra la sesión del usuario en lugar de quedarse esperando", async () => {
+    const { api } = playing({
+      attempts: async () => {
+        throw new ApiError(401, "http", "venció");
+      },
+    });
+    const { controller, last } = run(api);
+    await controller.open("s1");
+
+    await controller.submit("A");
+
+    expect(last()).toMatchObject({ kind: "error", reason: "auth" });
+  });
+
+  it("los envíos simultáneos siguen ignorándose mientras se resincroniza", async () => {
+    let release!: (a: Attempt[]) => void;
+    const { api, calls } = playing({
+      attempts: () => new Promise<Attempt[]>((resolve) => { release = resolve; }),
+    });
+    const { controller } = run(api);
+    await controller.open("s1");
+
+    const first = controller.submit("A");
+    await Promise.resolve();
+    await controller.submit("B"); // ignorado: el primero sigue resolviéndose
+    release([attempt(1)]);
+    await first;
+
+    expect(calls.answer).toBe(1);
+  });
+});

@@ -11,6 +11,8 @@ export interface AuthService {
   signOut(): Promise<void>;
   /** Token de acceso vigente (el SDK lo renueva solo) o null sin sesión. */
   getAccessToken(): Promise<string | null>;
+  /** Id del usuario con sesión (el de Supabase Auth) o null. No devuelve ni guarda el token. */
+  getUserId(): Promise<string | null>;
   /** Avisa cuando la sesión termina (cierre, vencimiento no renovable). */
   onSignedOut(callback: () => void): () => void;
 }
@@ -47,6 +49,14 @@ export function createAuthService(url: string, publishableKey: string): AuthServ
       try {
         const { data } = await client.auth.getSession();
         return data.session?.access_token ?? null;
+      } catch {
+        return null;
+      }
+    },
+    async getUserId() {
+      try {
+        const { data } = await client.auth.getSession();
+        return data.session?.user.id ?? null;
       } catch {
         return null;
       }

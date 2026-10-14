@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass, field
 
 DEFAULT_FRONTEND_ORIGIN = "http://localhost:5173"
+DOCS_ENV = "ENABLE_API_DOCS"
+_TRUTHY = {"1", "true", "yes", "si", "sí", "on"}
 
 
 @dataclass(frozen=True)
@@ -12,6 +14,10 @@ class Settings:
     ellas, las rutas de juego responden 503. `SUPABASE_URL` y
     `SUPABASE_PUBLISHABLE_KEY` sirven para validar el token del usuario;
     `DATABASE_URL` (privada) para el acceso a PostgreSQL.
+
+    `docs_enabled` publica `/docs`, `/redoc` y `/openapi.json`. Por defecto
+    están apagadas; se encienden solo con `ENABLE_API_DOCS=1` (desarrollo).
+    Apagarlas no sustituye la autenticación ni el control de acceso.
     """
 
     frontend_origins: tuple[str, ...]
@@ -19,6 +25,7 @@ class Settings:
     supabase_publishable_key: str | None = None
     # Privada: repr=False evita que aparezca en logs o trazas.
     database_url: str | None = field(default=None, repr=False)
+    docs_enabled: bool = False
 
 
 def _optional(name: str) -> str | None:
@@ -37,4 +44,5 @@ def load_settings() -> Settings:
         supabase_url=_optional("SUPABASE_URL"),
         supabase_publishable_key=_optional("SUPABASE_PUBLISHABLE_KEY"),
         database_url=_optional("DATABASE_URL"),
+        docs_enabled=(_optional(DOCS_ENV) or "").lower() in _TRUTHY,
     )

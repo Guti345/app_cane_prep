@@ -5,7 +5,7 @@
  * Recargar siempre se resuelve preguntando al servidor: `open` pide el estado
  * y `nextQuestion`, que devuelve la pregunta pendiente con el mismo plazo.
  */
-import { ApiError, type ApiClient } from "./api";
+import { ApiError, isUncertainOutcome, type ApiClient } from "./api";
 import { clockOffset } from "./timer";
 import type { Attempt, OptionLabel, Question, Session } from "./types";
 
@@ -16,6 +16,18 @@ export type PlayState =
   | { kind: "question"; session: Session; question: Question; offsetMs: number }
   | { kind: "submitting"; session: Session; question: Question }
   | { kind: "result"; session: Session; question: Question; attempt: Attempt; isLast: boolean }
+  /**
+   * La respuesta se envió pero no llegó su resultado. `missing`: el servidor confirmó que NO
+   * la guardó (se puede reenviar la misma posición); `unknown`: no se pudo comprobar, y un
+   * GET fallido no equivale a "no se guardó".
+   */
+  | {
+      kind: "unconfirmed";
+      session: Session;
+      question: Question;
+      option: OptionLabel | null;
+      saved: "unknown" | "missing";
+    }
   | { kind: "summary"; session: Session; attempts: Attempt[] }
   | { kind: "error"; reason: FailureReason; message: string };
 
@@ -46,6 +58,13 @@ export class PlayController {
   private question: Question | null = null;
   private answered = 0;
   private busy = false;
+  /** Respuesta enviada cuyo resultado no conocemos (ver estado `unconfirmed`). */
+  private uncertain: {
+    session: Session;
+    question: Question;
+    option: OptionLabel | null;
+    missing: boolean;
+  } | null = null;
 
   constructor(
     private readonly api: ApiClient,
@@ -89,6 +108,7 @@ export class PlayController {
       });
       this.answered += 1;
       this.question = null;
+      this.uncertain = null;
       this.emit({
         kind: "result",
         session,
@@ -102,10 +122,77 @@ export class PlayController {
         await this.open(session.id); // el servidor y el cliente se desincronizaron
         return;
       }
+      if (isUncertainOutcome(error)) {
+        // Nunca se reenvía sola: primero se pregunta al servidor qué guardó.
+        await this.confirmAnswer(session, question, option);
+        return;
+      }
       this.fail(error);
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * Resincroniza con GET /sessions/{id}/attempts tras perder la respuesta de un envío.
+   * El plazo de la pregunta no se toca: lo gobierna el servidor.
+   */
+  private async confirmAnswer(
+    session: Session,
+    question: Question,
+    option: OptionLabel | null,
+  ): Promise<void> {
+    this.uncertain = { session, question, option, missing: false };
+    let attempts: Attempt[];
+    try {
+      attempts = await this.api.attempts(session.id);
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
+        this.fail(error);
+        return;
+      }
+      // No pudimos comprobarlo: no es lo mismo que "no se guardó".
+      this.emit({ kind: "unconfirmed", session, question, option, saved: "unknown" });
+      return;
+    }
+    const saved = attempts.find((a) => a.position === question.position);
+    if (saved) {
+      this.uncertain = null;
+      this.answered = attempts.length;
+      this.question = null;
+      this.emit({
+        kind: "result",
+        session,
+        question,
+        attempt: saved,
+        isLast: this.answered >= session.question_count,
+      });
+      return;
+    }
+    this.uncertain.missing = true;
+    this.emit({ kind: "unconfirmed", session, question, option, saved: "missing" });
+  }
+
+  /** Vuelve a preguntar al servidor si guardó la respuesta (no reenvía nada). */
+  async checkAnswer(): Promise<void> {
+    const u = this.uncertain;
+    if (!u || this.busy) return;
+    this.busy = true;
+    try {
+      await this.confirmAnswer(u.session, u.question, u.option);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Reenvío manual de la MISMA posición y opción, solo tras confirmar que no se guardó.
+   * El servidor decide con su reloj: si el plazo ya venció, queda como sin respuesta.
+   */
+  async resendAnswer(): Promise<void> {
+    const u = this.uncertain;
+    if (!u || !u.missing || this.busy) return;
+    await this.submit(u.option);
   }
 
   /** Pasa a la siguiente pregunta (o al resumen si ya no quedan). */

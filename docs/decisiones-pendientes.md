@@ -81,8 +81,9 @@ Detalle y trazabilidad en [`supabase.md`](supabase.md),
 - **Selección de preguntas**: hoy al azar entre las últimas revisiones activas;
   no evita repetir preguntas ya vistas entre sesiones.
 - **Rutas pendientes**: repetir sesión (`repeated_from`).
-- **Documentación de la API**: `/docs` y `/openapi.json` están públicos;
-  decidir si se desactivan en producción.
+- ~~**Documentación de la API**~~ **Resuelto (2026-10-14):** `/docs`, `/redoc` y
+  `/openapi.json` están apagadas por defecto; solo `ENABLE_API_DOCS=1` las enciende.
+  No sustituye la autenticación.
 
 ### Datos y despliegues
 
@@ -118,8 +119,16 @@ Nada de esto está terminado:
 - **Versión de Python en Render**: el backend se probó localmente con 3.14.5.
   Al desplegar hay que fijar la versión (p. ej. con `PYTHON_VERSION`) y
   comprobar que Render la admite. No se creó `runtime.txt`.
-- **Servidor de Render tras inactividad**: probar su comportamiento en el plan
-  gratuito antes de depender de él.
+- **Servidor de Render tras inactividad**: el cliente ya lo maneja (calentamiento
+  acotado con `GET /health`, aviso accesible, sin reintentos de POST); ver
+  [`despliegue.md`](despliegue.md). Falta **medir** el despertar real tras el
+  despliegue. No hay pings de mantenimiento.
+- **`POST /sessions` con respuesta perdida**: no hay forma determinista de
+  recuperar la sesión sin su id (no existe un endpoint de sesión activa). El cliente deja
+  un **bloqueo persistente** ligado al usuario, que no libera recargar ni un GET; solo se
+  continúa tras 10 min y reconociéndolo. Cambio mínimo para recuperarla
+  (`client_request_id`, con migración) propuesto en [`despliegue.md`](despliegue.md);
+  **no implementado, pendiente de tu revisión**.
 - **Simulacro**: las fases (16, 12, 8 y 4 preguntas) se basan en el reglamento
   de 2025; faltan las reglas de 2026.
 - **Dependencia de pruebas**: con `httpx` 0.28 el cliente de pruebas de

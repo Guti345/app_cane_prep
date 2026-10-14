@@ -5,6 +5,7 @@ import { renderHome } from "./screens/home";
 import { renderLogin } from "./screens/login";
 import { renderPlayScreen } from "./screens/playScreen";
 import { renderRanking } from "./screens/ranking";
+import type { PendingCreateStore } from "./pendingCreate";
 import type { ActiveSessionStore } from "./store";
 import type { AuthService } from "./supabase";
 
@@ -12,6 +13,7 @@ export interface Services {
   auth: AuthService;
   api: ApiClient;
   store: ActiveSessionStore;
+  pendingCreate: PendingCreateStore;
   apiUrl: string;
 }
 

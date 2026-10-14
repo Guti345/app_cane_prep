@@ -13,6 +13,8 @@ Uso (desde la raíz del repositorio, con el entorno virtual del backend):
     backend/.venv/Scripts/python scripts/importar_banco.py --aplicar
     #    --ensayo  hace todo igual pero revierte al final.
     #    --remoto  obligatorio si el destino no es localhost (p. ej. pruebas_cane).
+    #    --destino-real REF  opt-in para el proyecto real: REF debe ser su referencia y
+    #                        coincidir exactamente con la que lleva la cadena de conexión.
     #    --forzar-estado  reaplica estado/motivo/verificación a preguntas YA existentes.
 
 Reglas que garantiza:
@@ -20,7 +22,8 @@ Reglas que garantiza:
 - Una pregunta activa siempre lleva `verified_at` y `verified_basis`.
 - Re-ejecutar NO cambia el estado de preguntas existentes (salvo --forzar-estado):
   solo inserta las nuevas y avisa de las que difieren.
-- Se niega a operar contra el proyecto real (lista BLOCKED_PROJECT_REFS).
+- Se niega a operar contra el proyecto real salvo con `--remoto --destino-real <ref>`,
+  y solo si la referencia verificada en la cadena coincide exactamente (ver `check_target`).
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 from collections import Counter
@@ -48,9 +52,15 @@ DSN_ENV = "IMPORT_DATABASE_URL"
 DSN_FILE = ROOT / "private-data" / "importador.env"  # una línea: IMPORT_DATABASE_URL=...
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
-# Proyecto real de producción: el importador se niega a tocarlo, con o sin --remoto.
+# Proyecto real de producción: el importador se niega a tocarlo, con o sin --remoto,
+# salvo con el opt-in específico `--remoto --destino-real <esta referencia>`.
 # (La referencia ya es pública: forma parte de la URL de Supabase que lleva el frontend.)
 BLOCKED_PROJECT_REFS = ("lzzyuxploolyqgitjtdu",)
+
+# Referencia de proyecto de Supabase: 20 letras minúsculas.
+_REF = r"[a-z]{20}"
+_DIRECT_HOST = re.compile(rf"^db\.({_REF})\.supabase\.co$")
+_POOLER_USER = re.compile(rf"^[A-Za-z_][A-Za-z0-9_]*\.({_REF})$")
 
 
 class ImportPlanError(Exception):
@@ -369,13 +379,75 @@ def read_dsn(env: dict[str, str] | None = None, file: Path = DSN_FILE) -> str | 
     return None
 
 
-def check_target(dsn: str, allow_remote: bool) -> str:
-    """Devuelve 'local' o 'remoto'. Nunca incluye la cadena en los mensajes."""
+def identify_project_ref(dsn: str) -> str | None:
+    """Referencia del proyecto de Supabase que nombra la cadena, o None si no la nombra.
+
+    Dos formas, las que documenta Supabase:
+    - conexión directa: host `db.<ref>.supabase.co` (el usuario es `postgres`);
+    - pooler: el usuario es `<rol>.<ref>` y el host es compartido (`*.pooler.supabase.com`).
+
+    Si el host y el usuario nombran referencias distintas, la identidad es
+    contradictoria y se rechaza (`ValueError`). No hay coincidencias parciales: ni la
+    contraseña, ni el nombre de la base, ni un fragmento del host cuentan.
+    """
     from psycopg.conninfo import conninfo_to_dict
+
+    try:
+        params = conninfo_to_dict(dsn)
+    except Exception as exc:  # cadena mal formada: sin eco de su contenido
+        raise ValueError("cadena de conexión ilegible") from exc
+    found: set[str] = set()
+    host = (params.get("host") or "").lower()
+    if (m := _DIRECT_HOST.match(host)):
+        found.add(m.group(1))
+    if (m := _POOLER_USER.match(params.get("user") or "")):
+        found.add(m.group(1))
+    if len(found) > 1:
+        raise ValueError("el host y el usuario nombran proyectos distintos")
+    return next(iter(found), None)
+
+
+def check_target(dsn: str, allow_remote: bool, real_ref: str | None = None) -> str:
+    """Devuelve 'local', 'remoto' o 'real'. Nunca incluye la cadena en los mensajes.
+
+    El proyecto real solo se admite con el opt-in específico: `real_ref` (el valor de
+    `--destino-real`) debe ser una referencia de BLOCKED_PROJECT_REFS, la cadena debe
+    nombrar exactamente esa referencia (host directo o usuario del pooler) y además hay
+    que pasar `--remoto`. Cualquier duda (identidad no verificable, otra referencia,
+    referencia solo "contenida" en la cadena) se rechaza.
+    """
+    from psycopg.conninfo import conninfo_to_dict
+
+    if real_ref is not None:
+        if real_ref not in BLOCKED_PROJECT_REFS:
+            raise SystemExit(
+                "RECHAZADO: --destino-real no corresponde a ningún proyecto real autorizado."
+            )
+        if not allow_remote:
+            raise SystemExit("RECHAZADO: el proyecto real exige también --remoto.")
+        try:
+            actual = identify_project_ref(dsn)
+        except ValueError:
+            raise SystemExit(
+                "RECHAZADO: no se pudo verificar a qué proyecto apunta la cadena de conexión."
+            ) from None
+        if actual is None:
+            raise SystemExit(
+                "RECHAZADO: la cadena no nombra un proyecto (host db.<ref>.supabase.co o "
+                "usuario <rol>.<ref>); no se puede verificar el destino."
+            )
+        if actual != real_ref:
+            raise SystemExit(
+                "RECHAZADO: la referencia de la cadena no coincide con --destino-real."
+            )
+        return "real"
 
     for ref in BLOCKED_PROJECT_REFS:
         if ref in dsn:
-            raise SystemExit("RECHAZADO: el destino es el proyecto real. Este importador no lo toca.")
+            raise SystemExit(
+                "RECHAZADO: el destino es el proyecto real. Para cargarlo hace falta el "
+                "opt-in específico (--remoto --destino-real <referencia>)."
+            )
     host = conninfo_to_dict(dsn).get("host") or "localhost"
     if host in LOCAL_HOSTS or host.startswith("/"):
         return "local"
@@ -680,6 +752,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--aplicar", action="store_true", help="carga en la base (por defecto: en seco)")
     ap.add_argument("--ensayo", action="store_true", help="con --aplicar: ejecuta y revierte")
     ap.add_argument("--remoto", action="store_true", help="permite un destino que no es localhost")
+    ap.add_argument("--destino-real", metavar="REF", default=None,
+                    help="opt-in para el proyecto real: su referencia, que debe coincidir "
+                         "exactamente con la de la cadena de conexión (exige --remoto)")
     ap.add_argument("--sin-figuras", action="store_true",
                     help="no sube las imágenes (para destinos sin la tabla question_assets)")
     ap.add_argument("--forzar-estado", action="store_true",
@@ -716,11 +791,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Falta {DSN_ENV}: defínela como variable de entorno o en una línea de "
                   f"{DSN_FILE.relative_to(ROOT)} (ignorado por Git).")
             return 2
-        target = check_target(dsn, args.remoto)
+        target = check_target(dsn, args.remoto, args.destino_real)
         import psycopg
         from psycopg.rows import dict_row
 
-        print(f"Destino: {target}. Transacción única{' (ensayo, se revierte)' if args.ensayo else ''}.")
+        shown = "proyecto REAL (referencia verificada)" if target == "real" else target
+        print(f"Destino: {shown}. Transacción única{' (ensayo, se revierte)' if args.ensayo else ''}.")
         from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
         params = conninfo_to_dict(dsn)

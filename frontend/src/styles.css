@@ -275,6 +275,21 @@ form button[type="submit"] {
   font-weight: 600;
 }
 
+/* Aviso de espera del servidor (región viva; vacía no ocupa espacio). Mostaza solo como
+   fondo con texto negro: contraste documentado arriba. */
+.server-status {
+  margin: 0;
+  text-align: center;
+  color: var(--cane-negro);
+  background: var(--warm);
+  font-weight: 600;
+}
+
+.server-status:not(:empty) {
+  padding: 0.6rem 1rem;
+  border-bottom: 2px solid var(--cane-negro);
+}
+
 .banner {
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;

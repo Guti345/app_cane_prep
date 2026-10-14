@@ -1,7 +1,14 @@
 # Estado de la sesión y puntos para retomar
 
-Fecha de la sesión: 2026-10-13. Documento de traspaso: **solo datos no secretos**. Ningún
-host, cadena de conexión, token ni contraseña va aquí.
+Fecha de la sesión: 2026-10-13, con una actualización del 2026-10-14 (sección 10).
+Documento de traspaso: **solo datos no secretos**. Ningún host, cadena de conexión, token
+ni contraseña va aquí.
+
+> **Actualización 2026-10-14:** el destino de publicación pasó a ser el proyecto **real**.
+> Se preparó en local (sin remoto): arranque en frío, documentación de la API apagada,
+> registro seguro de errores de base de datos, opt-in del importador y SQL de inventario
+> de solo lectura. Detalle y resultados en la sección 10. Las e2e con Auth real de la
+> sección 1 corresponden al 2026-10-13 y **no se repitieron** con estos cambios (sin token).
 
 > **E2E con Auth real sobre esta versión: PASAN (2 de 2), corridas el 2026-10-13** contra el
 > backend local sobre el proyecto de pruebas, con un inicio de sesión real de un usuario de
@@ -67,8 +74,10 @@ línea de CSS.
   `DATABASE_URL` (más `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `FRONTEND_ORIGIN`).
 - La conexión directa exige IPv6; no hay evidencia de que Render la ofrezca. Que el pooler sea
   alcanzable desde Render solo se sabe al desplegar.
-- El proyecto real de Supabase **no tiene nada aplicado** (ni migraciones ni banco). Las tres
-  migraciones y la carga del banco están en el proyecto de pruebas.
+- Según las notas anteriores, el proyecto real de Supabase **no tenía nada aplicado** (ni
+  migraciones ni banco). **No está verificado hoy**: se comprueba con el inventario de solo
+  lectura de la sección 10 antes de escribir nada. Las tres migraciones y la carga del banco
+  están en el proyecto de pruebas.
 
 ## 6. Próximos pasos, en orden
 
@@ -106,3 +115,60 @@ equipos. No se limpia: es un proyecto de pruebas.
 2. Con el backend de pruebas escuchando (`scripts\backend_pruebas.py`), correr las dos e2e
    (ver `docs/prueba-con-auth-real.md`, sección 3).
 3. Borrar el token: `backend\.venv\Scripts\python scripts\prueba_auth.py --borrar`.
+
+## 10. Preparación local del 2026-10-14 (para publicar el proyecto real)
+
+Solo cambios locales; **no se tocó ningún proyecto de Supabase, servicio ni panel**. Sin
+commits (los hace Antonio).
+
+| Qué | Resultado |
+| --- | --- |
+| Backend, `pytest` | 228 pasan (incluye las de operación/registros y las de inventario sobre PostgreSQL local) |
+| Frontend, `vitest` | 232 pasan, 2 omitidas (las e2e, sin token) |
+| Frontend, `tsc --noEmit` | sin errores |
+| Frontend, `npm run build` | correcto (JS 635,06 kB, 196,96 kB gzip) |
+| Mutaciones | 31 cambios válidos de las reglas nuevas; todos rompen alguna prueba |
+| E2E con Auth real | **no corridas hoy** (no hay token); siguen pendientes |
+
+**Qué cambió**
+
+- **Arranque en frío** (`frontend/src/api.ts`, `play.ts`, `screens/home.ts`,
+  `serverNotice.ts`): calentamiento acotado con `GET /health`, aviso accesible de espera,
+  esperas largas solo para operaciones seguras, sin reintentos automáticos de POST. Detalle
+  en [`despliegue.md`](despliegue.md).
+- **Respuesta perdida**: se resincroniza con `GET .../attempts`; un GET fallido no equivale
+  a "no se guardó".
+- **`POST /sessions` incierto**: marca persistente ligada al usuario (sin token), escrita
+  antes de enviar; recargar o un GET no la liberan; se continúa solo pasados 10 min y
+  reconociéndolo. No hay recuperación determinista (limitación y cambio mínimo propuesto
+  en `despliegue.md`).
+- **`POST /next`** no es una lectura (puede registrar un timeout y emitir la siguiente):
+  nunca se repite solo.
+- **Backend**: `/docs`, `/redoc` y `/openapi.json` apagadas por defecto
+  (`ENABLE_API_DOCS` para desarrollo); los errores de base de datos se registran solo con
+  clase y SQLSTATE; los logs de psycopg, su pool y uvicorn (tracebacks) se filtran igual y
+  cualquier otro error de psycopg responde 500 sin mensaje.
+- **Importador**: nuevo opt-in `--remoto --destino-real <referencia>` para el proyecto real,
+  con verificación exacta de la referencia (host directo o usuario del pooler). Ver
+  [`importador.md`](importador.md).
+- **Inicio de sesión de pruebas** (`scripts/prueba_auth.py`, `backend_pruebas.py`): ya no
+  consulta la CLI por defecto (una corrida se quedó esperando a `npx supabase projects
+  api-keys`; la causa de esa espera no está demostrada). Reutiliza la configuración pública
+  local verificada y acota las esperas. Ver `prueba-con-auth-real.md`.
+- **Inventario del proyecto real, solo lectura** (preparado y probado en local; **no
+  ejecutado**):
+  - [`inventario-real-1-catalogo.sql`](inventario-real-1-catalogo.sql): una sola sentencia
+    sobre el catálogo; distingue "NO EXISTE" de "existe pero este rol no lo lee", resume si la
+    instalación está completa/parcial/ausente y lista lo AJENO a CANE en `public` y
+    `cane_private` sin confundirlo con lo interno de Supabase. No lee tablas ni `auth.users`.
+  - [`inventario-real-2-conteos.sql`](inventario-real-2-conteos.sql): 12 bloques
+    independientes, de solo totales; cada uno se ejecuta únicamente si la etapa 1 confirmó
+    las relaciones que declara. **No se ejecuta hasta revisar el resultado de la etapa 1.**
+
+**Proyecto real, lo que se sabe**: según el panel (2026-10-14) es `app_cane_prep`,
+West US (Oregon), Healthy, plan FREE, "No migrations". Eso identifica el proyecto y lo que
+muestra el panel; **no demuestra** que no haya objetos de CANE, datos ni cuentas de Auth.
+
+**Sin verificar todavía**: el contenido del proyecto real (se inventaría con la etapa 1); el despliegue; que Render
+admita la versión de Python elegida y alcance el pooler; el tiempo real de despertar; las
+e2e con estos cambios; el recorrido en el sitio publicado.

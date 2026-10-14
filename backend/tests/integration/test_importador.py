@@ -215,6 +215,109 @@ def test_target_guard(importer):
             importer.check_target(dsn, True)  # ni siquiera con --remoto
 
 
+# --- destino real: opt-in específico ------------------------------------------------------------
+
+OTHER_REF = "abcdefghijklmnopqrst"  # 20 letras: forma válida de una referencia ajena
+
+
+def real_dsns(importer):
+    ref = importer.BLOCKED_PROJECT_REFS[0]
+    return {
+        "directa": f"postgresql://postgres:x@db.{ref}.supabase.co:5432/postgres",
+        "pooler": f"postgresql://postgres.{ref}:x@aws-0-eu-west-1.pooler.supabase.com:5432/postgres",
+    }
+
+
+def test_the_real_project_without_opt_in_is_rejected(importer):
+    for name, dsn in real_dsns(importer).items():
+        for allow_remote in (False, True):
+            with pytest.raises(SystemExit, match="proyecto real") as exc:
+                importer.check_target(dsn, allow_remote)  # sin real_ref
+            assert "x@" not in str(exc.value), name  # sin la cadena en el mensaje
+
+
+def test_opt_in_with_another_reference_is_rejected(importer):
+    real = importer.BLOCKED_PROJECT_REFS[0]
+    # 1) un opt-in que no es el proyecto real autorizado
+    for dsn in real_dsns(importer).values():
+        with pytest.raises(SystemExit, match="no corresponde"):
+            importer.check_target(dsn, True, OTHER_REF)
+    # 2) opt-in real, pero la cadena apunta a otro proyecto (p. ej. pruebas_cane)
+    for dsn in (
+        f"postgresql://postgres:x@db.{OTHER_REF}.supabase.co:5432/postgres",
+        f"postgresql://postgres.{OTHER_REF}:x@aws-0-eu-west-1.pooler.supabase.com:5432/postgres",
+    ):
+        with pytest.raises(SystemExit, match="no coincide"):
+            importer.check_target(dsn, True, real)
+
+
+def test_an_unverifiable_identity_is_rejected(importer):
+    real = importer.BLOCKED_PROJECT_REFS[0]
+    unverifiable = {
+        "host genérico, usuario sin referencia": "postgresql://postgres:x@aws-0-eu-west-1.pooler.supabase.com/postgres",
+        "host ajeno": "postgresql://postgres:x@bd.ejemplo.test:5432/postgres",
+        "localhost": "postgresql://postgres:x@127.0.0.1:5432/postgres",
+        "referencia solo en la contraseña": f"postgresql://postgres:{real}@db.ejemplo.test/postgres",
+        "referencia solo en el nombre de la base": f"postgresql://postgres:x@bd.ejemplo.test/{real}",
+        "referencia como subcadena del host": f"postgresql://postgres:x@db.{real}.supabase.co.otro.test/postgres",
+    }
+    for label, dsn in unverifiable.items():
+        with pytest.raises(SystemExit, match="verificar") as exc:  # no "no coincide": no hay identidad
+            importer.check_target(dsn, True, real)
+        assert "x@" not in str(exc.value), label
+
+
+def test_contradictory_host_and_user_are_rejected(importer):
+    real = importer.BLOCKED_PROJECT_REFS[0]
+    dsn = f"postgresql://postgres.{OTHER_REF}:x@db.{real}.supabase.co:5432/postgres"
+
+    with pytest.raises(SystemExit, match="verificar"):
+        importer.check_target(dsn, True, real)
+
+
+def test_the_exact_real_destination_is_allowed_with_the_opt_in(importer):
+    real = importer.BLOCKED_PROJECT_REFS[0]
+    for dsn in real_dsns(importer).values():
+        assert importer.check_target(dsn, True, real) == "real"
+    # también exige --remoto, y no basta con pasarlo sin el opt-in
+    with pytest.raises(SystemExit, match="--remoto"):
+        importer.check_target(real_dsns(importer)["pooler"], False, real)
+
+
+def test_identify_project_ref_reads_direct_and_pooler_forms_exactly(importer):
+    ident = importer.identify_project_ref
+
+    assert ident(f"postgresql://postgres:x@db.{OTHER_REF}.supabase.co/postgres") == OTHER_REF
+    assert ident(f"postgresql://postgres.{OTHER_REF}:x@aws-0-eu.pooler.supabase.com/postgres") == OTHER_REF
+    assert ident("postgresql://postgres:x@aws-0-eu.pooler.supabase.com/postgres") is None
+    # La referencia debe tener exactamente 20 letras: ni más cortas ni con otros caracteres
+    assert ident("postgresql://postgres:x@db.corta.supabase.co/postgres") is None
+    assert ident(f"postgresql://postgres.{OTHER_REF}1:x@h.pooler.supabase.com/postgres") is None
+
+
+def test_the_command_line_has_the_specific_flag(importer):
+    """El opt-in no es un 'permitir producción' genérico: lleva la referencia."""
+    import argparse
+
+    seen = {}
+    real_parse = argparse.ArgumentParser.parse_args
+
+    def spy(self, args=None, namespace=None):
+        ns = real_parse(self, args, namespace)
+        seen.update(vars(ns))
+        raise SystemExit(0)
+
+    argparse.ArgumentParser.parse_args = spy
+    try:
+        with pytest.raises(SystemExit):
+            importer.main(["--aplicar", "--remoto", "--destino-real", importer.BLOCKED_PROJECT_REFS[0]])
+    finally:
+        argparse.ArgumentParser.parse_args = real_parse
+
+    assert seen["destino_real"] == importer.BLOCKED_PROJECT_REFS[0]
+    assert "permitir_produccion" not in seen and "produccion" not in seen
+
+
 # --- lectura de lotes ----------------------------------------------------------------------------
 
 
