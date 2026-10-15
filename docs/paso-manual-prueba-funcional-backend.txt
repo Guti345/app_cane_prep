@@ -1,0 +1,87 @@
+& {
+    $ErrorActionPreference = 'Stop'
+    $base = 'http://127.0.0.1:8000'
+    $tokenFile = 'C:\Users\anton\OneDrive\Documentos\GitHub\app_cane_prep\private-data\token_prueba.json'
+
+    if (-not (Test-Path -LiteralPath $tokenFile -PathType Leaf)) { throw 'No existe private-data\token_prueba.json: genera uno con prueba_auth.py.' }
+    $data = Get-Content -LiteralPath $tokenFile -Raw | ConvertFrom-Json
+    if (-not $data.access_token) { throw 'El archivo de token no trae access_token.' }
+    $now = [int64][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ([int64]$data.expires_at -le $now) { throw 'El token vencio: genera uno nuevo con prueba_auth.py.' }
+    $headers = @{ Authorization = ('Bearer ' + $data.access_token) }
+    $data = $null
+
+    function Invoke-Api {
+        param([string]$Method, [string]$Path, $Body = $null)
+        $params = @{ Uri = ($base + $Path); Method = $Method; Headers = $headers; UseBasicParsing = $true; TimeoutSec = 30 }
+        if ($null -ne $Body) {
+            $params['Body'] = ($Body | ConvertTo-Json -Compress)
+            $params['ContentType'] = 'application/json'
+        }
+        try {
+            $r = Invoke-WebRequest @params
+            return [pscustomobject]@{ Status = [int]$r.StatusCode; Response = $r; Text = $null }
+        }
+        catch {
+            $caught = $Error[0]
+            $resp = $caught.Exception.Response
+            if ($null -eq $resp) {
+                throw ('RESULTADO AMBIGUO en ' + $Method + ' ' + $Path + ': no hubo respuesta HTTP (' + $caught.Exception.GetType().Name + '). No se repite.')
+            }
+            $text = ''
+            if ($null -ne $caught.ErrorDetails -and $caught.ErrorDetails.Message) { $text = [string]$caught.ErrorDetails.Message }
+            if ($text.Length -eq 0) { $text = '(sin cuerpo)' }
+            if ($text.Length -gt 300) { $text = $text.Substring(0, 300) }
+            return [pscustomobject]@{ Status = [int]$resp.StatusCode; Response = $null; Text = $text }
+        }
+    }
+
+    function Step-Fail {
+        param([string]$Name, $Result, [int]$Expected)
+        if ($Result.Status -ne $Expected) {
+            throw ($Name + ': esperaba HTTP ' + $Expected + ' y llego HTTP ' + $Result.Status + '. Mensaje: ' + $Result.Text)
+        }
+    }
+
+    $r1 = Invoke-Api -Method 'POST' -Path '/sessions' -Body @{ mode = 'random'; question_count = 2 }
+    Step-Fail 'POST /sessions' $r1 201
+    $s = $r1.Response.Content | ConvertFrom-Json
+    $sid = $s.id
+    Write-Output ('1) POST /sessions -> HTTP ' + $r1.Status + ' | id=' + $sid + ' | mode=' + $s.mode + ' | question_count=' + $s.question_count + ' | status=' + $s.status + ' | answered_count=' + $s.answered_count)
+
+    $r2 = Invoke-Api -Method 'POST' -Path ('/sessions/' + $sid + '/next')
+    Step-Fail 'POST /next' $r2 200
+    $q = $r2.Response.Content | ConvertFrom-Json
+    $labels = @()
+    foreach ($o in $q.options) { $labels += $o.label }
+    $refs = @()
+    foreach ($a in $q.assets) { $refs += [string]$a.ref }
+    Write-Output ('2) POST /next -> HTTP ' + $r2.Status + ' | position=' + $q.position + ' | area=' + $q.area + ' | opciones=' + ($labels -join ',') + ' | figuras=' + $refs.Count + ' | deadline_at=' + $q.deadline_at + ' | server_now=' + $q.server_now)
+    if ($labels.Count -lt 1) { throw 'La pregunta no trae opciones.' }
+
+    if ($refs.Count -gt 0) {
+        $name = ($refs[0] -replace '^assets/', '')
+        $path = '/sessions/' + $sid + '/questions/' + $q.position + '/assets/' + $name
+        $r3 = Invoke-Api -Method 'GET' -Path $path
+        if ($r3.Status -eq 200) {
+            Write-Output ('3) GET figura -> HTTP 200 | content-type=' + $r3.Response.Headers['Content-Type'] + ' | bytes=' + $r3.Response.Content.Length)
+        }
+        else {
+            Write-Output ('3) GET figura -> HTTP ' + $r3.Status + ' | mensaje: ' + $r3.Text)
+            throw 'La figura no se pudo obtener; se detiene antes de responder.'
+        }
+    }
+    else {
+        Write-Output '3) La pregunta no trae figura: la ruta de figuras queda NO VERIFICADA.'
+    }
+
+    $r4 = Invoke-Api -Method 'POST' -Path ('/sessions/' + $sid + '/answer') -Body @{ position = [int]$q.position; selected_option = $labels[0] }
+    Step-Fail 'POST /answer' $r4 200
+    $a = $r4.Response.Content | ConvertFrom-Json
+    Write-Output ('4) POST /answer -> HTTP ' + $r4.Status + ' | position=' + $a.position + ' | selected_option=' + $a.selected_option + ' | is_correct=' + $a.is_correct + ' | timed_out=' + $a.timed_out + ' | time_used_ms=' + $a.time_used_ms)
+
+    $r5 = Invoke-Api -Method 'POST' -Path ('/sessions/' + $sid + '/abandon')
+    Step-Fail 'POST /abandon' $r5 200
+    $f = $r5.Response.Content | ConvertFrom-Json
+    Write-Output ('5) POST /abandon -> HTTP ' + $r5.Status + ' | status=' + $f.status + ' | answered_count=' + $f.answered_count)
+}

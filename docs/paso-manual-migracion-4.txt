@@ -1,0 +1,105 @@
+& {
+    $ErrorActionPreference = 'Stop'
+    $repo = 'C:\Users\anton\OneDrive\Documentos\GitHub\app_cane_prep'
+    $tempBase = 'C:\Users\anton\AppData\Local\Temp'
+    $ref = 'yqhtmrlwxgvxyiekzscb'
+    $expected = [ordered]@{
+        '20261009212148_supabase_cane.sql'               = 'dc7e92cdfb3887af1c349f9fed15d9e5f3716f881577b188e2a8fa43480c9831'
+        '20261013034510_curacion_banco.sql'              = 'c9eefbb20ed7046a832319b2de4e7e9d304a28076024990a0eb3c7747f4929ea'
+        '20261013044404_question_assets.sql'             = 'ab262f6bf57ec53c4b697d179ebbf0d2bfde6cdf011d183cd3ff12aae86e1a51'
+        '20261014185955_revoke_service_role_secrets.sql' = '95524f4ae2eb7b935c171ae9c7e79eae0ad192ed35f4844df5211fdd2efb9bd4'
+    }
+    $names = @($expected.Keys)
+    $work = Join-Path $tempBase ('cane-prueba-' + [guid]::NewGuid().ToString('N'))
+
+    function Get-LfHash {
+        param([string]$Path)
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        $list = New-Object 'System.Collections.Generic.List[byte]'
+        for ($i = 0; $i -lt $bytes.Length; $i++) {
+            if ($bytes[$i] -eq 13 -and ($i + 1) -lt $bytes.Length -and $bytes[$i + 1] -eq 10) { continue }
+            $list.Add($bytes[$i])
+        }
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        return ([System.BitConverter]::ToString($sha.ComputeHash($list.ToArray())).Replace('-', '')).ToLower()
+    }
+
+    function Get-RawHash {
+        param([string]$Path)
+        return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLower()
+    }
+
+    try {
+        $srcDir = Join-Path $repo 'supabase\migrations'
+        $srcConfig = Join-Path $repo 'supabase\config.toml'
+        if (-not (Test-Path -LiteralPath $srcDir -PathType Container)) { throw 'No existe supabase\migrations en el repositorio.' }
+        if (-not (Test-Path -LiteralPath $srcConfig -PathType Leaf)) { throw 'No existe supabase\config.toml en el repositorio.' }
+
+        $repoNames = @()
+        foreach ($f in Get-ChildItem -LiteralPath $srcDir -File -Force) {
+            if ($f.Name -ne '.gitkeep') { $repoNames += $f.Name }
+        }
+        foreach ($n in $names) {
+            if ($repoNames -notcontains $n) { throw ('Falta en el repositorio: ' + $n) }
+        }
+        foreach ($n in $repoNames) {
+            if ($names -notcontains $n) { throw ('Archivo inesperado en el repositorio: ' + $n) }
+        }
+        foreach ($n in $names) {
+            $lf = Get-LfHash (Join-Path $srcDir $n)
+            if ($lf -cne $expected[$n]) { throw ('El hash LF del repositorio no coincide: ' + $n) }
+        }
+
+        if (Test-Path -LiteralPath $work) { throw 'La carpeta de trabajo ya existe.' }
+        New-Item -ItemType Directory -Path (Join-Path $work 'supabase\migrations') | Out-Null
+        Copy-Item -LiteralPath $srcConfig -Destination (Join-Path $work 'supabase\config.toml')
+        foreach ($n in $names) {
+            Copy-Item -LiteralPath (Join-Path $srcDir $n) -Destination (Join-Path $work ('supabase\migrations\' + $n))
+        }
+
+        $dstDir = Join-Path $work 'supabase\migrations'
+        $dstNames = @()
+        foreach ($f in Get-ChildItem -LiteralPath $dstDir -File -Force) { $dstNames += $f.Name }
+        if ($dstNames.Count -ne 4) { throw 'La carpeta de trabajo no tiene exactamente 4 migraciones.' }
+        foreach ($n in $names) {
+            if ($dstNames -notcontains $n) { throw ('Falta la copia: ' + $n) }
+            $rawSrc = Get-RawHash (Join-Path $srcDir $n)
+            $rawDst = Get-RawHash (Join-Path $dstDir $n)
+            if ($rawSrc -cne $rawDst) { throw ('La copia no coincide con el repositorio (raw): ' + $n) }
+            if ((Get-LfHash (Join-Path $dstDir $n)) -cne $expected[$n]) { throw ('El hash LF de la copia no coincide: ' + $n) }
+        }
+        if ((Get-RawHash $srcConfig) -cne (Get-RawHash (Join-Path $work 'supabase\config.toml'))) { throw 'config.toml copiado no coincide.' }
+
+        npx --no-install supabase link --project-ref $ref --workdir $work
+        if ($LASTEXITCODE -ne 0) { throw ('supabase link termino con codigo ' + $LASTEXITCODE) }
+
+        $linkFile = Join-Path $work 'supabase\.temp\project-ref'
+        if (-not (Test-Path -LiteralPath $linkFile -PathType Leaf)) { throw 'La vinculacion no creo supabase\.temp\project-ref.' }
+        $linked = (Get-Content -LiteralPath $linkFile -Raw).Trim()
+        if ($linked -cne $ref) { throw 'El project-ref vinculado no es el de pruebas_cane.' }
+
+        $finalNames = @()
+        foreach ($f in Get-ChildItem -LiteralPath $dstDir -File -Force) { $finalNames += $f.Name }
+        if ($finalNames.Count -ne 4) { throw 'Tras vincular, el conjunto de migraciones cambio.' }
+        $rows = @()
+        foreach ($n in $names) {
+            $rawDst = Get-RawHash (Join-Path $dstDir $n)
+            $lfDst = Get-LfHash (Join-Path $dstDir $n)
+            if ($rawDst -cne (Get-RawHash (Join-Path $srcDir $n))) { throw ('Tras vincular, la copia cambio: ' + $n) }
+            $rows += [pscustomobject]@{
+                Archivo     = $n
+                RawSHA256   = $rawDst
+                LfSHA256    = $lfDst
+                LfEsperado  = ($lfDst -ceq $expected[$n])
+                IgualAlRepo = ($rawDst -ceq (Get-RawHash (Join-Path $srcDir $n)))
+            }
+        }
+        Write-Output ('Carpeta de trabajo: ' + $work)
+        Write-Output ('project-ref vinculado: ' + $linked)
+        Write-Output ($rows | Format-Table -AutoSize | Out-String -Width 260)
+    }
+    catch {
+        Write-Output ('Carpeta de trabajo (puede existir parcialmente): ' + $work)
+        throw
+    }
+}
