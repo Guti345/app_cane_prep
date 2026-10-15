@@ -1,0 +1,51 @@
+& {
+    $ErrorActionPreference = 'Stop'
+    $repo = 'C:\Users\anton\OneDrive\Documentos\GitHub\app_cane_prep'
+    $realFile = Join-Path $repo 'private-data\importador-real.env'
+    $realRef = 'lzzyuxploolyqgitjtdu'
+    $testRef = 'yqhtmrlwxgvxyiekzscb'
+    $py = Join-Path $repo 'backend\.venv\Scripts\python.exe'
+    $importer = Join-Path $repo 'scripts\importar_banco.py'
+    $reportsDir = Join-Path $repo 'private-data\reportes'
+    $report = Join-Path $reportsDir ('real_ensayo_' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
+    $value = $null
+
+    try {
+        if (-not (Test-Path -LiteralPath $py -PathType Leaf)) { throw 'No existe el Python del entorno virtual del backend.' }
+        if (-not (Test-Path -LiteralPath $importer -PathType Leaf)) { throw 'No existe scripts\importar_banco.py.' }
+        if (-not (Test-Path -LiteralPath $realFile -PathType Leaf)) { throw 'No existe private-data\importador-real.env: crealo primero.' }
+        if (Test-Path -LiteralPath 'Env:\IMPORT_DATABASE_URL') { throw 'IMPORT_DATABASE_URL ya esta definida en esta sesion: cierrala y abre otra terminal.' }
+
+        Push-Location -LiteralPath $repo
+        try {
+            git check-ignore -q 'private-data/importador-real.env'
+            if ($LASTEXITCODE -ne 0) { throw 'private-data\importador-real.env NO esta ignorado por Git: no se continua.' }
+        }
+        finally { Pop-Location }
+
+        foreach ($line in [System.IO.File]::ReadAllLines($realFile)) {
+            if ($line.StartsWith('IMPORT_DATABASE_URL=')) {
+                $value = $line.Substring('IMPORT_DATABASE_URL='.Length).Trim().Trim('"').Trim("'")
+                break
+            }
+        }
+        if ([string]::IsNullOrEmpty($value)) { throw 'El archivo no tiene una linea IMPORT_DATABASE_URL=... con valor.' }
+        if ($value.Contains($testRef)) { throw 'La cadena nombra el proyecto de pruebas: no se usa.' }
+        $isPooler = $value.StartsWith('postgresql://postgres.' + $realRef + ':') -or $value.StartsWith('postgres://postgres.' + $realRef + ':')
+        $isDirect = ($value.Contains('@db.' + $realRef + '.supabase.co'))
+        if (-not ($isPooler -or $isDirect)) { throw 'La cadena no nombra el proyecto real (usuario postgres.<ref> o host db.<ref>.supabase.co).' }
+
+        $env:IMPORT_DATABASE_URL = $value
+        $value = $null
+        if (-not (Test-Path -LiteralPath $reportsDir -PathType Container)) { New-Item -ItemType Directory -Path $reportsDir | Out-Null }
+
+        & $py $importer --aplicar --remoto --destino-real $realRef --ensayo --reporte $report
+        if ($LASTEXITCODE -ne 0) { throw ('El importador termino con codigo ' + $LASTEXITCODE + ' (0 = ensayo correcto y revertido).') }
+        Write-Output ('Informe guardado en: ' + $report)
+    }
+    finally {
+        $value = $null
+        if (Test-Path -LiteralPath 'Env:\IMPORT_DATABASE_URL') { Remove-Item -LiteralPath 'Env:\IMPORT_DATABASE_URL' }
+        Write-Output ('IMPORT_DATABASE_URL definida al terminar: ' + (Test-Path -LiteralPath 'Env:\IMPORT_DATABASE_URL'))
+    }
+}

@@ -217,6 +217,27 @@ cadena de pruebas guardada ahí no se usa por descuido; y si se usara, el opt-in
 rechazaría por no coincidir. No uses `--forzar-estado` ni `--sin-figuras` para sortear
 diferencias: si las cuentas no cuadran, el importador no carga nada y hay que revisar.
 
+### Cadena del proyecto real: archivo aparte
+
+El importador **no** tiene una opción para elegir otro archivo: `read_dsn` usa la variable de
+entorno `IMPORT_DATABASE_URL` y, solo si no existe, `private-data/importador.env` (el de pruebas).
+Para el real se usa un archivo local aparte, ignorado por Git (`.gitignore` cubre
+`private-data/`), que **un bloque de PowerShell** carga en la variable de entorno de esa sesión y
+limpia en un `finally`: `private-data/importador-real.env`, con una sola línea
+`IMPORT_DATABASE_URL=<cadena del Session pooler del proyecto real>`. La cadena la escribe la
+persona en ese archivo; nunca va en un comando, argumento ni en el bloque.
+
+- Como la variable de entorno tiene prioridad, `importador.env` (pruebas) no se lee mientras la
+  variable esté definida. Si por error faltara, el opt-in `--destino-real` rechazaría la cadena de
+  pruebas por no coincidir con la referencia.
+- El bloque (`docs/paso-manual-real-ensayo.txt`) aborta si la variable ya estaba definida, si el
+  archivo no está ignorado, o si la cadena nombra pruebas u otro proyecto.
+- El ensayo (`--ensayo`) escribe dentro de una transacción y la revierte; el informe va a
+  `private-data/reportes/`. La carga definitiva es un paso distinto, con el mismo opt-in y sin
+  `--ensayo`.
+- Control posterior, de solo lectura: `docs/control-carga-real.sql` (valores esperados junto a
+  cada recuento).
+
 ## Cadena de conexión
 
 Se lee de la variable de entorno `IMPORT_DATABASE_URL` o, si no existe, de una
