@@ -53,7 +53,8 @@ Generada con `npx supabase migration new supabase_cane`:
 `supabase/migrations/20261009212148_supabase_cane.sql`. La versión
 `20261009212148` es la fecha y hora UTC de creación (AAAAMMDDHHMMSS) y es la
 clave que la CLI registra en el historial remoto. No se renombra tras
-aplicarla. Hay tres migraciones, en este orden:
+aplicarla. Hay cuatro migraciones, en este orden (las tres primeras están aplicadas en
+`pruebas_cane`; la cuarta está **solo preparada y probada en local**):
 
 1. `20261009212148_supabase_cane.sql`: el esquema. Probada en `pruebas_cane`
    (14/14).
@@ -71,6 +72,21 @@ aplicarla. Hay tres migraciones, en este orden:
    `anon`/`authenticated`, congelada para versiones usadas). **Aplicada a
    `pruebas_cane` el 2026-10-13** (CLI, carpeta temporal; `migration list`
    coincide); no aplicada al real.
+4. `20261014185955_revoke_service_role_secrets.sql` (2026-10-14): `REVOKE ALL
+   PRIVILEGES` sobre `public.question_keys` y `public.question_assets` a
+   `service_role`. Los privilegios por defecto de Supabase en `public` se lo
+   daban (es un rol con `BYPASSRLS`); las migraciones 1 a 3 solo cerraron esas
+   tablas a `PUBLIC`, `anon` y `authenticated`. El backend y el importador usan
+   el rol `postgres`, no `service_role`. Es idempotente y no toca datos.
+   - **Preparada y probada en local** (PGlite con defaults emulados; ver
+     `backend/tests/integration/test_migracion_service_role.py`).
+   - **Pendiente** de revisión y de una prueba remota autorizada en `pruebas_cane`.
+   - **Pendiente** de aplicar y verificar en el real.
+   - Límite: quita privilegios de **un rol sobre dos tablas**. No protege las credenciales
+     de `postgres`, propietarios o superusuarios, otras tablas ni los endpoints del backend.
+     Vía residual conocida: `service_role` conserva `SELECT` sobre `attempts` y
+     `session_questions`, con lo que se puede **inferir** la clave de preguntas ya
+     respondidas; no se cierra aquí.
 
 ## Decisiones adoptadas
 
@@ -156,7 +172,8 @@ autoriza.
   están desactivados; si estuvieran activos, revisa qué se desplegó antes.
 - `supabase/migrations/` contiene solo `.gitkeep` y
   `20261009212148_supabase_cane.sql`, `20261013034510_curacion_banco.sql` y
-  `20261013044404_question_assets.sql` (ninguna migración vacía de más).
+  `20261013044404_question_assets.sql`, más `20261014185955_revoke_service_role_secrets.sql` desde su preparación (ninguna
+  migración vacía de más).
 - ✔ El encabezado de la migración ya refleja que fue probada y que no está
   aplicada al real. Tras el `push` no edites la migración: si algo cambia,
   va en una migración nueva.
@@ -175,7 +192,7 @@ siguiente. No pegues contraseñas en el chat ni las pases con `-p`/`--password`.
 | 1 | `npx supabase login` | Abre el navegador para autenticar la CLI con tu cuenta y guarda un token en tu equipo. Si ya hay sesión, puede omitirse. No uses `--token` con el valor en la línea de comandos. | No |
 | 2 | `npx supabase link --project-ref REF_DEL_PROYECTO_REAL` | Asocia la carpeta al proyecto remoto (escribe estado en `supabase/.temp/`, ignorado). Puede pedir la contraseña de la base: solo en la terminal. | No |
 | 3 | `Get-Content supabase\.temp\project-ref` | Confirma que el ref vinculado es el real y **no** el de `pruebas_cane`. | No |
-| 4 | `npx supabase migration list` | Compara migraciones locales con las del remoto. Esperado: las tres migraciones aparecen como locales, remoto vacío. | No (lectura) |
+| 4 | `npx supabase migration list` | Compara migraciones locales con las del remoto. Esperado: las migraciones locales aparecen como locales y el remoto, vacío (4 si ya se prepara la cuarta). | No (lectura) |
 | 5 | `npx supabase db push --dry-run` | Lista qué se aplicaría, sin aplicarlo. Deben aparecer **solo** `20261009212148_supabase_cane.sql`, `20261013034510_curacion_banco.sql` y `20261013044404_question_assets.sql`, en ese orden. El aviso sobre `.gitkeep` es inofensivo. No prueba que el SQL se ejecute. | No |
 | 6 | `npx supabase db push` | **Aplica las migraciones** pendientes al proyecto vinculado y las registra en el historial. Pide confirmación. | **Sí** |
 
@@ -212,7 +229,7 @@ Detente y describe el problema, sin improvisar, si en el paso 4 o 5:
 - aparecen migraciones desconocidas, tablas preexistentes o un historial
   local/remoto inconsistente;
 - el ref del paso 3 no es el esperado;
-- el dry-run lista algo distinto de las tres migraciones.
+- el dry-run lista algo distinto de las migraciones planificadas (las tres primeras y, si se aplica, la cuarta).
 
 Tampoco uses `migration repair`, `db reset --linked`, `DROP` ni repitas un
 `CREATE` para "hacerlo pasar". Si el paso 6 falla a medias, **no lo repitas**:

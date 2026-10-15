@@ -134,3 +134,10 @@ Nada de esto está terminado:
 - **Dependencia de pruebas**: con `httpx` 0.28 el cliente de pruebas de
   Starlette emite una advertencia de deprecación que recomienda `httpx2`. Las
   pruebas pasan; está sin decidir si migrar.
+
+### service_role sobre las claves y las figuras
+
+- **Elegida (2026-10-14):** preparar una cuarta migración que quite a `service_role` el
+  acceso a `question_keys` y `question_assets`. **Preparada y probada en local**; pendiente
+  de revisión, de prueba remota en `pruebas_cane` y de aplicar en el real.
+  Ver [`supabase.md`](supabase.md).

@@ -84,8 +84,9 @@ def grants(db, qualified: str) -> dict[str, set[str]]:
 # --- qué hay en los archivos --------------------------------------------------------------------
 
 
-def test_the_three_migrations_are_exactly_the_planned_ones_in_order():
-    assert [f.name for f in FILES] == EXPECTED_ORDER
+def test_the_three_planned_migrations_come_first_in_order_and_one_is_added():
+    assert [f.name for f in FILES[:3]] == EXPECTED_ORDER
+    assert len(FILES) == 4  # la cuarta (service_role) se prueba en test_migracion_service_role.py
 
 
 def test_the_files_declare_the_tables_we_expect_to_protect():
@@ -120,8 +121,11 @@ def test_the_only_objects_outside_the_application_that_they_need_exist_in_supaba
     assert schemas <= {"public", "cane_private", "auth"}  # auth.users; nada de `extensions`
     assert "auth" in schemas
     # Solo se nombran los roles `anon`/`authenticated` (y PUBLIC): existen en todo proyecto Supabase.
-    named = set(re.findall(r"\b(anon|authenticated|service_role)\b", sql))
+    first_three = "\n".join(code(f) for f in FILES[:3])
+    named = set(re.findall(r"\b(anon|authenticated|service_role)\b", first_three))
     assert named == {"anon", "authenticated"}, named
+    # Solo la cuarta migración nombra a service_role (para quitarle dos tablas).
+    assert set(re.findall(r"\b(anon|authenticated|service_role)\b", code(FILES[3]))) == {"service_role"}
     assert roles  # hay REVOKE ... FROM
     # No usan funciones de pgcrypto: la extensión es innecesaria (gen_random_uuid es nativa).
     assert not re.search(r"\b(digest|crypt|gen_salt|hmac|pgp_\w+|encrypt|decrypt)\s*\(", sql, re.I)
@@ -198,17 +202,22 @@ def test_cane_private_is_closed_to_the_browser_roles(supabase_like):
         assert fn["prosecdef"] is False, fn["proname"]
 
 
-def test_service_role_residual_is_known_and_documented(supabase_like):
-    """Residuo, no del navegador: los privilegios por defecto de Supabase dan acceso a service_role.
+def test_service_role_keeps_only_what_the_fourth_migration_did_not_take_away(supabase_like):
+    """Los privilegios por defecto de Supabase le dan acceso a service_role; la 4.ª migración
+    se lo quita SOLO en las dos tablas secretas (antes este test documentaba el residuo con True).
 
-    La migración no concede nada a service_role (T1) y tampoco se lo quita. En el proyecto real
+    El resto de las tablas y la vista conservan el acceso por defecto: es el alcance previsto
+    (ver test_migracion_service_role.py para la verificación detallada). En el proyecto real
     ese rol (con BYPASSRLS) solo lo usa quien tenga la clave secreta; el frontend no la lleva.
-    Si se decide revocarlo, será una migración nueva y este test cambia a False.
     """
-    row = supabase_like.execute(
-        "SELECT has_table_privilege('service_role', 'public.question_keys', 'SELECT') AS ok").fetchone()
+    def can_read(table: str) -> bool:
+        return supabase_like.execute(
+            "SELECT has_table_privilege('service_role', %s, 'SELECT') AS ok", (f"public.{table}",)
+        ).fetchone()["ok"]
 
-    assert row["ok"] is True
+    assert can_read("question_keys") is False
+    assert can_read("question_assets") is False
+    assert can_read("questions") is True  # fuera del alcance de la 4.ª migración
 
 
 def test_a_mistaken_grant_still_leaves_the_browser_roles_with_zero_rows(supabase_like, seed):
@@ -263,9 +272,11 @@ def test_reapplying_a_migration_fails_without_touching_the_data(supabase_like, s
     before = db.execute("SELECT (SELECT count(*) FROM public.teams) AS t, "
                         "(SELECT count(*) FROM public.questions) AS q").fetchone()
 
-    for path in FILES:  # cada una por separado, en su propio savepoint
+    for path in FILES[:3]:  # cada una por separado, en su propio savepoint
         with pytest.raises(psycopg.Error), db.transaction():
             db.execute(path.read_text(encoding="utf-8"))
+    # La 4.ª es un REVOKE: repetirla no falla ni cambia nada (idempotente).
+    db.execute(FILES[3].read_text(encoding="utf-8"))
 
     after = db.execute("SELECT (SELECT count(*) FROM public.teams) AS t, "
                        "(SELECT count(*) FROM public.questions) AS q").fetchone()

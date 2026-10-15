@@ -1,8 +1,8 @@
 # Supabase
 
-Aquí vive el esquema de PostgreSQL de CANE Prep. Hay **tres migraciones, ninguna
-aplicada al proyecto real**: las tres están aplicadas en el proyecto de
-pruebas.
+Aquí vive el esquema de PostgreSQL de CANE Prep. Hay **cuatro migraciones, ninguna
+aplicada al proyecto real**: las tres primeras están aplicadas en el proyecto de
+pruebas; la cuarta (`20261014185955_revoke_service_role_secrets.sql`) está solo preparada y probada en local.
 
 ## Qué hay hoy
 

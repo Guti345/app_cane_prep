@@ -172,3 +172,18 @@ muestra el panel; **no demuestra** que no haya objetos de CANE, datos ni cuentas
 **Sin verificar todavía**: el contenido del proyecto real (se inventaría con la etapa 1); el despliegue; que Render
 admita la versión de Python elegida y alcance el pooler; el tiempo real de despertar; las
 e2e con estos cambios; el recorrido en el sitio publicado.
+
+## 11. Cuarta migración (service_role), 2026-10-14
+
+- **Preparada y probada en local**: `supabase/migrations/20261014185955_revoke_service_role_secrets.sql`
+  quita `ALL PRIVILEGES` de `service_role` sobre `public.question_keys` y
+  `public.question_assets`. Sin cambios en las tres anteriores (hashes idénticos).
+- **Pendiente** de tu revisión y de una prueba remota autorizada en `pruebas_cane`.
+- **Pendiente** de aplicar y verificar en el real. Privilegios efectivos del real: no
+  verificados.
+- Las tres migraciones anteriores siguen aplicadas en `pruebas_cane`; la cuarta **no** está
+  aplicada en ningún proyecto.
+- El dry-run manual contra el real (carpeta temporal vinculada) enumeró solo las tres
+  primeras; esa carpeta tiene copias y no incluye la cuarta hasta que se copie.
+- La decisión de los 10 min / `client_request_id` sigue **pendiente**; no tiene relación con
+  esta migración.

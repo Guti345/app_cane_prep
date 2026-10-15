@@ -1,0 +1,20 @@
+-- CANE MVP: retirar a service_role el acceso a las claves de respuesta y a las
+-- figuras (2026-10-14). Migración ADITIVA; no modifica las anteriores.
+-- ESTADO: probada solo en PostgreSQL local (PGlite, backend/tests/integration).
+-- NO aplicada a pruebas_cane ni al proyecto real.
+--
+-- Por qué: en Supabase, todo objeto nuevo de public nace con privilegios por defecto
+-- para anon, authenticated y service_role. Las migraciones anteriores cerraron las dos
+-- tablas a PUBLIC, anon y authenticated, pero no a service_role (T1 solo decía que no se
+-- le concede nada). service_role tiene BYPASSRLS: con ese privilegio de tabla leería las
+-- claves de respuesta y los bytes de las figuras. El backend y el importador usan el rol
+-- postgres (propietario), no service_role, así que nada del juego depende de él.
+--
+-- Alcance: SOLO estas dos tablas y SOLO service_role. No cambia propietarios, defaults,
+-- políticas, otras tablas, otros roles ni datos. Es idempotente (repetirlo no cambia
+-- nada) y no se puede deshacer sin un GRANT explícito.
+--
+-- Límite: la medida quita privilegios de este rol sobre dos tablas. No protege las
+-- credenciales de postgres ni de otros propietarios o superusuarios, ni otras tablas.
+-- REVOKE solo retira lo concedido por el rol que la ejecuta (el propietario, postgres).
+REVOKE ALL PRIVILEGES ON TABLE public.question_keys, public.question_assets FROM service_role;
